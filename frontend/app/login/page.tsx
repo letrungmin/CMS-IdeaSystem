@@ -24,10 +24,14 @@ export default function LoginPage() {
       // Simulating a network request for UI testing
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // THÊM DÒNG NÀY ĐỂ CẤP THẺ BÀI (COOKIE) CHO NGƯỜI DÙNG:
+      document.cookie = "token=mock_jwt_token_123; path=/; max-age=86400";
+      
       console.log("Login credentials:", { email, password });
       
       // Temporary success action
       alert("Login UI is working! Awaiting Spring Boot API integration.");
+      router.push('/dashboard'); // Đổi lại hướng đi thẳng vào dashboard luôn
       // router.push('/ideas'); 
 
     } catch (err) {
