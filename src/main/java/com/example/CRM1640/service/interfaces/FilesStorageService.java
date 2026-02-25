@@ -10,7 +10,15 @@ import org.springframework.web.multipart.MultipartFile;
 public interface FilesStorageService {
     public void initFilesStorage();
 
-    public List<String> save(List<MultipartFile> file, UUID uuid);
+
+        List<String> save(List<MultipartFile> files, UUID uuid);
+
+        default String save(MultipartFile file, UUID uuid) {
+            List<String> results = save(List.of(file), uuid);
+            if (results.isEmpty()) {
+                throw new IllegalStateException("File saving failed");
+            }
+            return results.get(0);        }
 
     public Resource load(String filename);
 
