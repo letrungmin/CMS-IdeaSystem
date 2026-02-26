@@ -2,7 +2,7 @@ package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.dto.request.UserRequest;
 import com.example.CRM1640.dto.response.UserResponse;
-import com.example.CRM1640.entities.UserEntity;
+import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.mappers.UserMapper;
 import com.example.CRM1640.repositories.UserRepository;
 import com.example.CRM1640.service.interfaces.AuthenticationService;

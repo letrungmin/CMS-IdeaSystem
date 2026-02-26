@@ -1,4 +1,4 @@
-package com.example.CRM1640.entities;
+package com.example.CRM1640.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
