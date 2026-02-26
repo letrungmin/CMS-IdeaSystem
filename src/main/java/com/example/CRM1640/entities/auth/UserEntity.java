@@ -1,5 +1,6 @@
-package com.example.CRM1640.entities;
+package com.example.CRM1640.entities.auth;
 
+import com.example.CRM1640.entities.organization.DepartmentEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -71,4 +72,8 @@ public class UserEntity {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<RoleEntity> roles = new HashSet<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private DepartmentEntity department;
 }
