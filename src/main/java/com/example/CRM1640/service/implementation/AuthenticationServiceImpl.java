@@ -1,5 +1,6 @@
 package com.example.CRM1640.service.implementation;
 
+import com.example.CRM1640.dto.request.CredentialRequest;
 import com.example.CRM1640.dto.request.UserRequest;
 import com.example.CRM1640.dto.response.UserResponse;
 import com.example.CRM1640.entities.auth.RoleEntity;
@@ -58,6 +59,20 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         UserResponse userResponse = userMapper.toResponse(savedUser);
 
         return userResponse;
+    }
+
+    public UserResponse login(CredentialRequest request) {
+
+        UserEntity user = userRepository
+                .findByEmailOrUsername(request.identifier(), request.identifier())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Compare to hashed password
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new RuntimeException("Invalid password");
+        }
+
+        return userMapper.toResponse(user);
     }
 
     private DepartmentEntity getDepartmentOrThrow(Long departmentId) {
