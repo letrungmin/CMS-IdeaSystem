@@ -18,6 +18,25 @@ public record UserResponse(
         String mobile,
         String socialLinks,
         String address,
+        List<RoleResponse> roles,
+        DepartmentResponse department
+) {
 
-        List<RoleResponse> roles
-) {}
+    // Constructor rút gọn
+    public UserResponse(UUID uuid, String username, String email) {
+        this(
+                uuid,
+                email,
+                username,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+}

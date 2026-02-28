@@ -1,10 +1,14 @@
 package com.example.CRM1640.mappers;
 
 import com.example.CRM1640.dto.request.UserRequest;
+import com.example.CRM1640.dto.response.DepartmentResponse;
 import com.example.CRM1640.dto.response.RoleResponse;
 import com.example.CRM1640.dto.response.UserResponse;
 import com.example.CRM1640.entities.auth.RoleEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -12,8 +16,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@RequiredArgsConstructor
 public class UserMapper {
-
+    DepartmentMapper departmentMapper;
     public UserEntity toEntity(UserRequest request) {
         if (request == null) return null;
 
@@ -27,7 +33,6 @@ public class UserMapper {
         entity.setMobile(request.mobile());
         entity.setSocialLinks(request.socialLinks());
         entity.setAddress(request.address());
-
         return entity;
     }
 
@@ -45,7 +50,8 @@ public class UserMapper {
                 entity.getMobile(),
                 entity.getSocialLinks(),
                 entity.getAddress(),
-                mapRoles(entity.getRoles())
+                mapRoles(entity.getRoles()),
+                departmentMapper.toResponse(entity.getDepartment())
         );
     }
 
