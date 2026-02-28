@@ -1,4 +1,4 @@
-package com.example.CRM1640.repositories;
+package com.example.CRM1640.repositories.authen;
 
 import com.example.CRM1640.entities.organization.DepartmentEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
