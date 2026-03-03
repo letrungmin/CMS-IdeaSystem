@@ -31,6 +31,13 @@ public class AcademicYearController {
         return service.update(id, request);
     }
 
+    @PatchMapping("/{id}")
+    public AcademicYearResponse changeActiveStatus(
+            @PathVariable Long id,
+            @RequestParam boolean active) {
+        return service.changeActiveStatus(id, active);
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);

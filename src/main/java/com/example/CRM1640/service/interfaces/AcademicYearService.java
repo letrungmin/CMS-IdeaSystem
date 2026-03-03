@@ -17,4 +17,6 @@ public interface AcademicYearService {
     List<AcademicYearResponse> getAll();
 
     List<AcademicYearResponse> getActiveYears();
+
+    AcademicYearResponse changeActiveStatus(Long id, boolean active);
 }

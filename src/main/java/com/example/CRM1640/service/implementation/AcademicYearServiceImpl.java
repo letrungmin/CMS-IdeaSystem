@@ -86,6 +86,20 @@ public class AcademicYearServiceImpl implements AcademicYearService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public AcademicYearResponse changeActiveStatus(Long id, boolean active) {
+
+        AcademicYearEntity entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+
+        entity.setActive(active);
+
+        repository.save(entity);
+
+        return mapper.toResponse(entity);
+    }
+
     private void validateDates(AcademicYearRequest request) {
 
         if (request.ideaClosureDate().isAfter(request.finalClosureDate())) {
