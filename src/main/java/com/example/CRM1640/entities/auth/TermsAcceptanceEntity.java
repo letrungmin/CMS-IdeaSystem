@@ -24,8 +24,10 @@ public class TermsAcceptanceEntity {
     }
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "terms_id", nullable = false)
     private TermsEntity terms;
 }
