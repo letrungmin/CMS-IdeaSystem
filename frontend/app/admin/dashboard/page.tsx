@@ -1,4 +1,4 @@
-import IdeasChart from '@/components/IdeasChart'; // Import the new chart component
+import IdeasChart from '@/components/IdeaCard'; // Import the new chart component
 
 export default function DashboardPage() {
   return (

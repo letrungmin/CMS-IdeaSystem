@@ -31,7 +31,7 @@ export default function LoginPage() {
       
       // Temporary success action
       alert("Login UI is working! Awaiting Spring Boot API integration.");
-      router.push('/dashboard'); // Đổi lại hướng đi thẳng vào dashboard luôn
+      router.push('/dashboard'); 
       // router.push('/ideas'); 
 
     } catch (err) {
