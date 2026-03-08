@@ -3,7 +3,7 @@ package com.example.CRM1640.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Set;
 
 @Builder
 public record UserRequest (
@@ -39,5 +39,7 @@ public record UserRequest (
         @NotBlank
         String address,
 
-        List<Long> roles
+        Set<Long> roles,
+
+        Long department
 ){}

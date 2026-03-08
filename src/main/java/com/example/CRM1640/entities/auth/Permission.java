@@ -1,4 +1,4 @@
-package com.example.CRM1640.entities;
+package com.example.CRM1640.entities.auth;
 
 import jakarta.persistence.*;
 
