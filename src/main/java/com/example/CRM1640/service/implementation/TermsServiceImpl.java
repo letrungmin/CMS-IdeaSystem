@@ -1,13 +1,16 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.dto.request.AcceptTermsRequest;
+import com.example.CRM1640.dto.request.MyTermStatusRequest;
 import com.example.CRM1640.dto.response.TermsStatusResponse;
 import com.example.CRM1640.entities.auth.TermsAcceptanceEntity;
 import com.example.CRM1640.entities.auth.TermsEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
+import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.repositories.authen.TermsRepository;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.authen.UserTermsAcceptanceRepository;
+import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.TermService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,22 +23,34 @@ public class TermsServiceImpl implements TermService {
     private final TermsRepository termsRepository;
     private final UserTermsAcceptanceRepository acceptanceRepository;
     private final UserRepository userRepository;
+    private final AcademicYearRepository academicYearRepository;
 
     @Override
     public TermsStatusResponse getMyTermsStatus() {
 
-        Long userId = getCurrentUserId();
+        UserEntity currentUser = getCurrentUserId();
 
-        TermsEntity activeTerms = termsRepository.findByActiveTrue()
-                .orElseThrow(() -> new RuntimeException("No active terms found"));
+        // get active academic year
+        AcademicYearEntity academicYear = academicYearRepository
+                .findFirstByActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year"));
 
+        // get terms theo department + academic year
+        TermsEntity terms = termsRepository
+                .findByDepartmentIdAndAcademicYearIdAndActiveTrue(
+                        currentUser.getDepartment().getId(),
+                        academicYear.getId()
+                )
+                .orElseThrow(() -> new RuntimeException("No terms found"));
+
+        // check accepted
         boolean accepted = acceptanceRepository
-                .existsByUserIdAndTermsId(userId, activeTerms.getId());
+                .existsByUserIdAndTermsId(currentUser.getId(), terms.getId());
 
         return new TermsStatusResponse(
                 accepted,
-                activeTerms.getId(),
-                activeTerms.getVersion()
+                terms.getId(),
+                terms.getVersion()
         );
     }
 
@@ -43,19 +58,19 @@ public class TermsServiceImpl implements TermService {
     @Transactional
     public void acceptTerms(AcceptTermsRequest request) {
 
-        Long userId = getCurrentUserId();
+        UserEntity currentUserId = getCurrentUserId();
 
         TermsEntity terms = termsRepository.findById(request.termsId())
                 .orElseThrow(() -> new RuntimeException("Terms not found"));
 
         boolean alreadyAccepted = acceptanceRepository
-                .existsByUserIdAndTermsId(userId, terms.getId());
+                .existsByUserIdAndTermsId(currentUserId.getId(), terms.getId());
 
         if (alreadyAccepted) {
             return; // idempotent
         }
 
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = userRepository.findById(currentUserId.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         TermsAcceptanceEntity acceptance = new TermsAcceptanceEntity();
@@ -65,18 +80,18 @@ public class TermsServiceImpl implements TermService {
         acceptanceRepository.save(acceptance);
     }
 
-    private Long getCurrentUserId() {
+    private UserEntity getCurrentUserId() {
 
 
-        String username = "testuser"; // Test Data, this function will be implemented after the security function completed
+        String username = "tes6tuser2"; // Test Data, this function will be implemented after the security function completed
 
 //                SecurityContextHolder.getContext()
 //                .getAuthentication()
 //                .getName();
 
-        UserEntity user = userRepository.findByUsername(username)
+        return  userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return user.getId();
+
     }
 }

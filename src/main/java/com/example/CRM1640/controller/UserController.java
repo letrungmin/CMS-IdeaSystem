@@ -1,6 +1,7 @@
 package com.example.CRM1640.controller;
 
 import com.example.CRM1640.dto.request.AcceptTermsRequest;
+import com.example.CRM1640.dto.request.MyTermStatusRequest;
 import com.example.CRM1640.dto.response.TermsStatusResponse;
 import com.example.CRM1640.service.interfaces.TermService;
 import lombok.AccessLevel;
