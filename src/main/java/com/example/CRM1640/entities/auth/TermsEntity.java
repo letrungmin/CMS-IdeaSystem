@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "terms")
@@ -15,10 +16,14 @@ public class TermsEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String version;
+    private String title;
 
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    private String version;
+
     private boolean active;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
 }
