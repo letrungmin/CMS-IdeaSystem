@@ -1,7 +1,6 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.dto.request.AcceptTermsRequest;
-import com.example.CRM1640.dto.request.MyTermStatusRequest;
 import com.example.CRM1640.dto.response.TermsStatusResponse;
 import com.example.CRM1640.entities.auth.TermsAcceptanceEntity;
 import com.example.CRM1640.entities.auth.TermsEntity;
