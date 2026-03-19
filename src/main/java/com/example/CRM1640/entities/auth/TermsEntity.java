@@ -1,5 +1,7 @@
 package com.example.CRM1640.entities.auth;
 
+import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.entities.organization.DepartmentEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -18,12 +20,19 @@ public class TermsEntity {
 
     private String title;
 
-    @Column(columnDefinition = "TEXT")
     private String content;
 
     private String version;
 
     private boolean active;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "department_id")
+    private DepartmentEntity department;
+
+    @ManyToOne
+    @JoinColumn(name = "academic_year_id")
+    private AcademicYearEntity academicYear;
 }

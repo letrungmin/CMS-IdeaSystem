@@ -6,4 +6,9 @@ import java.util.Optional;
 
 public interface TermsRepository extends JpaRepository<TermsEntity,Long> {
     Optional<TermsEntity> findByActiveTrue();
+
+    Optional<TermsEntity> findByDepartmentIdAndAcademicYearIdAndActiveTrue(
+            Long departmentId,
+            Long academicYearId
+    );
 }
