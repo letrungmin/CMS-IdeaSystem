@@ -1,65 +1,77 @@
 "use client";
 
-import React, { useState } from "react";
-import { Bell, MessageSquare, ThumbsUp, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-
-const MOCK_NOTIFICATIONS = [
-  { id: "n1", type: "COMMENT", title: "New Comment", message: "Thanh Thai commented on your idea.", time: "5 mins ago", isRead: false },
-  { id: "n2", type: "REACTION", title: "New Upvote", message: "Someone upvoted your idea.", time: "2 hours ago", isRead: false }
-];
+import React, { useState, useRef, useEffect } from "react";
+import { Bell, Heart, MessageSquare, AlertCircle } from "lucide-react";
 
 export default function NotificationBell() {
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-  const markAllAsRead = () => setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const getIconForType = (type: string) => {
-    switch (type) {
-      case "COMMENT": return <MessageSquare className="w-4 h-4 text-blue-500" />;
-      case "REACTION": return <ThumbsUp className="w-4 h-4 text-green-500" />;
-      default: return <Bell className="w-4 h-4 text-slate-500" />;
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
     }
-  };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const notifications = [
+    { id: 1, type: "reaction", user: "QA Coordinator", action: "reacted to your idea", target: "Upgrade the Campus Wi-Fi", time: "10 mins ago", icon: <Heart className="w-4 h-4 text-rose-500 fill-current" />, unread: true },
+    { id: 2, type: "comment", user: "Student Voicer", action: "commented on your idea", target: "Upgrade the Campus Wi-Fi", time: "1 hour ago", icon: <MessageSquare className="w-4 h-4 text-blue-500" />, unread: true },
+    { id: 3, type: "system", user: "System", action: "Your idea was approved by", target: "Moderation Board", time: "1 day ago", icon: <AlertCircle className="w-4 h-4 text-emerald-500" />, unread: false },
+  ];
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900 rounded-full hover:bg-slate-100">
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      {/* FIXED: bg-white and z-50 to prevent transparency issues */}
-      <PopoverContent className="w-80 p-0 mr-4 mt-2 border-slate-200 shadow-xl rounded-xl bg-white z-50" align="end">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
-          <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-slate-900">Notifications</h4>
-            {unreadCount > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs px-1.5 rounded-md">{unreadCount} new</Badge>}
+    <div className="relative" ref={dropdownRef}>
+      
+      {/* Bell Button */}
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`relative p-2.5 rounded-full transition-colors focus:outline-none ${isOpen ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+      >
+        <Bell className="w-5 h-5" />
+        <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 animate-in slide-in-from-top-4 fade-in duration-200">
+          
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
+            <h3 className="font-extrabold text-slate-800 text-lg">Notifications</h3>
+            <button className="text-xs text-blue-600 font-bold hover:text-blue-700 transition-colors">Mark all as read</button>
           </div>
-          {unreadCount > 0 && <button onClick={markAllAsRead} className="text-xs font-medium text-blue-600 hover:underline">Mark all as read</button>}
-        </div>
-        <ScrollArea className="h-[300px]">
-          {notifications.map((notification) => (
-            <div key={notification.id} className={`flex items-start gap-3 p-4 border-b border-slate-50 cursor-pointer ${!notification.isRead ? 'bg-blue-50/30' : 'bg-white'}`}>
-              <div className="mt-1 bg-white border border-slate-100 shadow-sm p-2 rounded-full flex-shrink-0">{getIconForType(notification.type)}</div>
-              <div className="flex-1 space-y-1">
-                <p className={`text-sm ${!notification.isRead ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>{notification.title}</p>
-                <p className="text-xs text-slate-500 line-clamp-2">{notification.message}</p>
-                <p className="text-[11px] font-medium text-slate-400 pt-1">{notification.time}</p>
+          
+          <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+            {notifications.length > 0 ? (
+              <div className="flex flex-col">
+                {notifications.map((notif) => (
+                  <div key={notif.id} className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 ${notif.unread ? "bg-blue-50/20" : ""}`}>
+                    <div className="mt-0.5 shrink-0 bg-white p-1.5 rounded-full shadow-sm border border-slate-100">{notif.icon}</div>
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-700 leading-snug">
+                        <span className="font-bold text-slate-900">{notif.user}</span> {notif.action} <span className="font-semibold text-slate-900">"{notif.target}"</span>
+                      </p>
+                      <span className="text-xs text-slate-400 font-medium mt-1.5 block">{notif.time}</span>
+                    </div>
+                    {notif.unread && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full mt-2 shrink-0"></div>}
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+            ) : (
+              <div className="p-8 text-center text-slate-500 text-sm">No new notifications</div>
+            )}
+          </div>
+          
+          <div className="p-3 border-t border-slate-100 text-center bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
+            <button className="text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors">View all activities</button>
+          </div>
+          
+        </div>
+      )}
+    </div>
   );
 }
