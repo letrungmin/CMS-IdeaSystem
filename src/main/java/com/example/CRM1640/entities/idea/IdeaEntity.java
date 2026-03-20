@@ -50,6 +50,12 @@ public class IdeaEntity {
 
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private Long likeCount = 0L;
+
+    @Column(nullable = false)
+    private Long dislikeCount = 0L;
+
     // ================= AUTHOR =================
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id")

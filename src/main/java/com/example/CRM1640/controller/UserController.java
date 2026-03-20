@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserController {
 
-    private final TermService service;
+    TermService service;
 
     @GetMapping("/me/terms-status")
     public TermsStatusResponse getMyTermsStatus() {
