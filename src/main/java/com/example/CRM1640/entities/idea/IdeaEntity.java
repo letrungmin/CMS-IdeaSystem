@@ -82,4 +82,7 @@ public class IdeaEntity {
 
     @OneToMany(mappedBy = "idea", cascade = CascadeType.ALL)
     private Set<IdeaDocumentEntity> documents = new HashSet<>();
+
+    @Column(nullable = false)
+    private Long commentCount = 0L;
 }

@@ -32,8 +32,13 @@ public class ReactionEntity {
     }
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idea_id")
     private IdeaEntity idea;
 
     @ManyToOne(fetch = FetchType.LAZY)
     private UserEntity user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "comment_id")
+    private CommentEntity comment;
 }
