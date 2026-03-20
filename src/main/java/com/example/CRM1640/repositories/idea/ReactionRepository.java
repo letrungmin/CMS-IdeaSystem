@@ -20,4 +20,18 @@ public interface ReactionRepository extends JpaRepository<ReactionEntity,Long> {
         GROUP BY r.type
     """)
     List<Object[]> countGroupByType(Long ideaId);
+
+    // ===== COMMENT =====
+    Optional<ReactionEntity> findByCommentIdAndUserId(Long commentId, Long userId);
+
+    List<ReactionEntity> findByCommentId(Long commentId);
+
+    // count per type (optional - advanced)
+    @Query("""
+        SELECT r.type, COUNT(r)
+        FROM ReactionEntity r
+        WHERE r.comment.id = :commentId
+        GROUP BY r.type
+    """)
+    List<Object[]> countByCommentGroupByType(Long commentId);
 }

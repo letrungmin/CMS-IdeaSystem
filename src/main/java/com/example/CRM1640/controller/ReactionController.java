@@ -1,5 +1,6 @@
 package com.example.CRM1640.controller;
 
+import com.example.CRM1640.dto.request.ReactCommentRequest;
 import com.example.CRM1640.dto.request.ReactionRequest;
 import com.example.CRM1640.dto.response.ReactionResponse;
 import com.example.CRM1640.service.interfaces.ReactionService;
@@ -20,8 +21,13 @@ public class ReactionController {
 
     ReactionService reactionService;
 
-    @PostMapping
+    @PostMapping("/idea")
     public ResponseEntity<ReactionResponse> react(@RequestBody ReactionRequest request) {
         return ResponseEntity.ok(reactionService.react(request));
+    }
+
+    @PostMapping("/comment")
+    public ReactionResponse reactComment(@RequestBody ReactCommentRequest request) {
+        return reactionService.reactComment(request);
     }
 }

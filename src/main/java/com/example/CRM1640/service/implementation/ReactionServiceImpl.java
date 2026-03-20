@@ -1,19 +1,21 @@
 package com.example.CRM1640.service.implementation;
 
+import com.example.CRM1640.dto.request.ReactCommentRequest;
 import com.example.CRM1640.dto.request.ReactionRequest;
 import com.example.CRM1640.dto.response.ReactionResponse;
 import com.example.CRM1640.entities.auth.UserEntity;
+import com.example.CRM1640.entities.idea.CommentEntity;
 import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.entities.idea.ReactionEntity;
 import com.example.CRM1640.enums.ReactionType;
 import com.example.CRM1640.repositories.authen.UserRepository;
+import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
 import com.example.CRM1640.repositories.idea.ReactionRepository;
 import com.example.CRM1640.service.interfaces.ReactionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,67 +27,132 @@ public class ReactionServiceImpl implements ReactionService {
     private final ReactionRepository reactionRepository;
     private final IdeaRepository ideaRepository;
     private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
 
+    // ================= IDEA REACTION =================
     @Override
     @Transactional
     public ReactionResponse react(ReactionRequest request) {
 
         UserEntity user = getCurrentUser();
 
-        // Get idea
         IdeaEntity idea = ideaRepository.findById(request.getIdeaId())
                 .orElseThrow(() -> new RuntimeException("Idea not found"));
 
         ReactionType newType = request.getType();
 
-        // Find existing reaction
         ReactionEntity existing = reactionRepository
                 .findByUserIdAndIdeaId(user.getId(), idea.getId())
                 .orElse(null);
 
-        // ================= CASE 1: CREATE =================
+        handleReaction(
+                existing,
+                newType,
+
+                // CREATE
+                () -> {
+                    ReactionEntity r = new ReactionEntity();
+                    r.setUser(user);
+                    r.setIdea(idea);
+                    r.setType(newType);
+                    reactionRepository.save(r);
+
+                    increaseCount(idea, newType);
+                },
+
+                // DELETE (toggle off)
+                () -> {
+                    reactionRepository.delete(existing);
+                    decreaseCount(idea, existing.getType());
+                },
+
+                // UPDATE (change type)
+                () -> {
+                    decreaseCount(idea, existing.getType());
+                    existing.setType(newType);
+                    reactionRepository.save(existing);
+                    increaseCount(idea, newType);
+                }
+        );
+
+        return buildIdeaResponse(user.getId(), idea.getId());
+    }
+
+    // ================= COMMENT REACTION =================
+    @Override
+    @Transactional
+    public ReactionResponse reactComment(ReactCommentRequest request) {
+
+        UserEntity user = getCurrentUser();
+
+        CommentEntity comment = commentRepository.findById(request.commentId())
+                .orElseThrow(() -> new RuntimeException("Comment not found"));
+
+        ReactionEntity existing = reactionRepository
+                .findByCommentIdAndUserId(comment.getId(), user.getId())
+                .orElse(null);
+
+        ReactionType newType = request.type();
+
+        handleReaction(
+                existing,
+                newType,
+
+                // CREATE
+                () -> {
+                    ReactionEntity r = new ReactionEntity();
+                    r.setUser(user);
+                    r.setComment(comment);
+                    r.setType(newType);
+                    reactionRepository.save(r);
+
+                    comment.setLikeCount(comment.getLikeCount() + 1);
+                },
+
+                // DELETE
+                () -> {
+                    reactionRepository.delete(existing);
+                    comment.setLikeCount(Math.max(0, comment.getLikeCount() - 1));
+                },
+
+                // UPDATE
+                () -> {
+                    existing.setType(newType);
+                    reactionRepository.save(existing);
+                }
+        );
+
+        return buildCommentResponse(user.getId(), comment.getId());
+    }
+
+    // ================= CORE LOGIC (REUSE) =================
+    private void handleReaction(
+            ReactionEntity existing,
+            ReactionType newType,
+            Runnable onCreate,
+            Runnable onDelete,
+            Runnable onUpdate
+    ) {
+
+        // CREATE
         if (existing == null) {
-
-            ReactionEntity reaction = new ReactionEntity();
-            reaction.setUser(user);
-            reaction.setIdea(idea);
-            reaction.setType(newType);
-
-            reactionRepository.save(reaction);
-
-            // Update count for LIKE / DISLIKE only
-            increaseCount(idea, newType);
+            onCreate.run();
+            return;
         }
 
-        // ================= CASE 2: UPDATE / DELETE =================
-        else {
+        ReactionType oldType = existing.getType();
 
-            ReactionType oldType = existing.getType();
-
-            // SAME → remove (toggle off)
-            if (oldType == newType) {
-
-                reactionRepository.delete(existing);
-                decreaseCount(idea, oldType);
-            }
-
-            // CHANGE TYPE
-            else {
-
-                existing.setType(newType);
-                reactionRepository.save(existing);
-
-                decreaseCount(idea, oldType);
-                increaseCount(idea, newType);
-            }
+        // TOGGLE OFF
+        if (oldType == newType) {
+            onDelete.run();
+            return;
         }
 
-        return buildResponse(user.getId(), idea.getId());
+        // UPDATE TYPE
+        onUpdate.run();
     }
 
     // ================= COUNT LOGIC =================
-
-    // Increase count for LIKE / DISLIKE only
     private void increaseCount(IdeaEntity idea, ReactionType type) {
 
         if (type == ReactionType.LIKE) {
@@ -97,7 +164,6 @@ public class ReactionServiceImpl implements ReactionService {
         }
     }
 
-    // Decrease count safely (avoid negative)
     private void decreaseCount(IdeaEntity idea, ReactionType type) {
 
         if (type == ReactionType.LIKE) {
@@ -109,18 +175,15 @@ public class ReactionServiceImpl implements ReactionService {
         }
     }
 
-    // ================= BUILD RESPONSE =================
+    // ================= BUILD IDEA RESPONSE =================
+    private ReactionResponse buildIdeaResponse(Long userId, Long ideaId) {
 
-    private ReactionResponse buildResponse(Long userId, Long ideaId) {
-
-        // Get grouped counts
         List<Object[]> result = reactionRepository.countGroupByType(ideaId);
 
         Map<ReactionType, Long> counts = new HashMap<>();
         long total = 0;
 
         for (Object[] row : result) {
-
             ReactionType type = (ReactionType) row[0];
             Long count = (Long) row[1];
 
@@ -128,7 +191,6 @@ public class ReactionServiceImpl implements ReactionService {
             total += count;
         }
 
-        // Get current user's reaction
         ReactionEntity myReaction = reactionRepository
                 .findByUserIdAndIdeaId(userId, ideaId)
                 .orElse(null);
@@ -140,10 +202,37 @@ public class ReactionServiceImpl implements ReactionService {
         return new ReactionResponse(counts, total, myType);
     }
 
-    // ================= MOCK CURRENT USER =================
+    // ================= BUILD COMMENT RESPONSE =================
+    private ReactionResponse buildCommentResponse(Long userId, Long commentId) {
+
+        List<ReactionEntity> reactions = reactionRepository.findByCommentId(commentId);
+
+        Map<ReactionType, Long> counts = new HashMap<>();
+
+        for (ReactionEntity r : reactions) {
+            counts.put(
+                    r.getType(),
+                    counts.getOrDefault(r.getType(), 0L) + 1
+            );
+        }
+
+        long total = reactions.size();
+
+        ReactionEntity myReaction = reactionRepository
+                .findByCommentIdAndUserId(commentId, userId)
+                .orElse(null);
+
+        String myType = myReaction != null
+                ? myReaction.getType().name()
+                : "NONE";
+
+        return new ReactionResponse(counts, total, myType);
+    }
+
+    // ================= MOCK USER =================
     private UserEntity getCurrentUser() {
 
-        String username = "testuser"; // TODO: replace with SecurityContext
+        String username = "tes5tuser2"; // TODO: replace with SecurityContext
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
