@@ -1,76 +1,142 @@
 "use client";
 
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Send, ShieldAlert } from "lucide-react";
+import { X, UploadCloud, AlertCircle, Shield } from "lucide-react";
 
 export default function SubmitIdeaModal({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsOpen(false);
-      alert("Idea submitted successfully! AI duplication check passed.");
-    }, 2000);
-  };
+  // Prevent background scrolling when modal is open
+  if (isOpen && typeof window !== "undefined") {
+    document.body.style.overflow = "hidden";
+  } else if (!isOpen && typeof window !== "undefined") {
+    document.body.style.overflow = "unset";
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[650px] bg-white max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl flex items-center gap-2"><Sparkles className="h-6 w-6 text-blue-600" /> Submit New Idea</DialogTitle>
-          <DialogDescription>Share your innovative thoughts. The AI will automatically check for duplicates.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="title" className="text-slate-900 font-semibold text-base">Idea Title <span className="text-red-500">*</span></Label>
-            <Input id="title" placeholder="e.g., Upgrade the Campus Wi-Fi..." required className="h-11 focus-visible:ring-blue-500 text-base" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="category" className="text-slate-900 font-semibold text-base">Category <span className="text-red-500">*</span></Label>
-            <Select required>
-              <SelectTrigger className="h-11 focus:ring-blue-500"><SelectValue placeholder="Select a category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="it">IT Infrastructure</SelectItem>
-                <SelectItem value="facilities">Campus Facilities</SelectItem>
-                <SelectItem value="academic">Curriculum Enhancement</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="content" className="text-slate-900 font-semibold text-base">Details & Rationale <span className="text-red-500">*</span></Label>
-            <Textarea id="content" placeholder="Explain the problem and proposed solution..." className="min-h-[150px] resize-y focus-visible:ring-blue-500 text-base" required />
-          </div>
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="space-y-1">
-              <Label className="text-base font-semibold text-slate-900">Post Anonymously</Label>
-              <p className="text-sm text-slate-500 pr-4">Identity hidden from students, visible to QA.</p>
+    <>
+      {/* Wrapper to trigger the modal from TopBar button */}
+      <div onClick={() => setIsOpen(true)} className="inline-block">
+        {children}
+      </div>
+
+      {/* Modal Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          
+          {/* Modal Container */}
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h2 className="text-xl font-bold text-slate-800">Submit a New Idea</h2>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <Switch className="data-[state=checked]:bg-slate-800" />
+
+            {/* Modal Body (Scrollable form) */}
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              <form className="space-y-6">
+                
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Idea Title <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    placeholder="E.g., Upgrade the campus library Wi-Fi" 
+                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Category Selection */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
+                  <select className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-slate-600 bg-white">
+                    <option value="">Select a category...</option>
+                    <option value="it">IT Infrastructure</option>
+                    <option value="facilities">Campus Facilities</option>
+                    <option value="curriculum">Curriculum Enhancement</option>
+                    <option value="services">Student Services</option>
+                  </select>
+                </div>
+
+                {/* Content/Description */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Description <span className="text-red-500">*</span></label>
+                  <textarea 
+                    rows={5}
+                    placeholder="Describe your idea in detail. What is the problem? What is your proposed solution?" 
+                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none"
+                  ></textarea>
+                </div>
+
+                {/* File Upload (Drag & Drop UI) */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Supporting Documents</label>
+                  <div className="mt-1 border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 hover:border-blue-400 transition-colors cursor-pointer group">
+                    <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                    <p className="text-xs text-slate-500 mt-1">PDF, DOCX, JPG or PNG (MAX. 10MB)</p>
+                  </div>
+                </div>
+
+                {/* Settings: Anonymous & Terms */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="flex items-center h-5">
+                      <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-slate-500" /> Post Anonymously
+                      </span>
+                      <span className="text-xs text-slate-500 mt-0.5">Your identity will be hidden from other students, but recorded by the system administrators.</span>
+                    </div>
+                  </label>
+
+                  <div className="w-full h-px bg-slate-200"></div>
+
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="flex items-center h-5">
+                      <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900">
+                        I agree to the Terms and Conditions <span className="text-red-500">*</span>
+                      </span>
+                      <span className="text-xs text-slate-500 mt-0.5 flex items-start gap-1">
+                        <AlertCircle className="w-3 h-3 min-w-3 mt-0.5 shrink-0" />
+                        By submitting, you agree that this idea does not contain offensive content and complies with university guidelines.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+              </form>
+            </div>
+
+            {/* Modal Footer (Actions) */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 rounded-b-2xl">
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-200 transition-all hover:-translate-y-0.5">
+                Submit Idea
+              </button>
+            </div>
+
           </div>
-          <div className="flex items-start gap-3 pt-2 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-            <ShieldAlert className="h-5 w-5 text-blue-600 mt-0.5" />
-            <p className="text-sm text-slate-700">By clicking submit, you agree to the Terms & Conditions.</p>
-          </div>
-          <DialogFooter className="pt-6 border-t border-slate-100 sm:justify-between">
-            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)} disabled={isLoading}>Cancel</Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
-              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking...</> : <><Send className="mr-2 h-4 w-4" /> Submit Idea</>}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    </>
   );
 }
