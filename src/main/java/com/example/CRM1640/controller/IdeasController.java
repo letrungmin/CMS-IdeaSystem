@@ -1,6 +1,7 @@
 package com.example.CRM1640.controller;
 
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
+import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
 import com.example.CRM1640.service.interfaces.IdeaService;
 import jakarta.validation.Valid;
@@ -26,4 +27,10 @@ public class IdeasController {
     ) {
         return ResponseEntity.ok(ideaService.submitIdea(request));
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<IdeaDetailResponse> submitIdea(@PathVariable Long id){
+        return ResponseEntity.ok(ideaService.getDetail(id));
+    }
+
 }
