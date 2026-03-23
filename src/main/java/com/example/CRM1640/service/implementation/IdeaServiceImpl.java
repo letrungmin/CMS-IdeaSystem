@@ -173,12 +173,12 @@ public class IdeaServiceImpl implements IdeaService {
             for (IdeaDocumentEntity doc : idea.getDocuments()) {
 
                 if (doc.getType() == FileType.IMAGE) {
-                    images.add(doc.getFileUrl());
+                    images.add("/api/v1"+doc.getFileUrl());
                 } else {
                     attachments.add(new FileResponse(
-                            doc.getFileName(),
-                            doc.getFileUrl(),
-                            doc.getType().name()
+                            "/api/v1"+doc.getFileName(),
+                            "/api/v1"+doc.getFileUrl(),
+                            "/api/v1"+doc.getType().name()
                     ));
                 }
             }
@@ -237,7 +237,7 @@ public class IdeaServiceImpl implements IdeaService {
     // ================= CURRENT USER =================
     private UserEntity getCurrentUser() {
 
-        String username = "tes5tuser2"; // TODO: replace SecurityContext
+        String username = "te7s6tus99er2"; // TODO: replace SecurityContext
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));

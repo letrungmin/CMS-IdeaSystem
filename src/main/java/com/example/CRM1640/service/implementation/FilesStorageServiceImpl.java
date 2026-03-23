@@ -6,9 +6,7 @@ import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.enums.FileType;
 import com.example.CRM1640.service.interfaces.FilesStorageService;
 import jakarta.annotation.PostConstruct;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -24,35 +22,67 @@ import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class FilesStorageServiceImpl implements FilesStorageService {
 
-   final FileConfigProperty config;
+    private final FileConfigProperty config;
 
-    Path root;
+    private Path root;
 
     private static final int MAX_FILENAME_LENGTH = 120;
 
     // ================= INIT =================
     @PostConstruct
-    private void initRootPath() {
+    public void init() {
+        if (config.getRootPath() == null) {
+            throw new RuntimeException("File root path not configured!");
+        }
+
         this.root = Paths.get(config.getRootPath())
                 .toAbsolutePath()
                 .normalize();
-    }
 
-    @Override
-    public void initFilesStorage() {
         try {
-            if (!Files.exists(root)) {
-                Files.createDirectories(root);
-            }
+            Files.createDirectories(root);
         } catch (IOException e) {
-            throw new RuntimeException("Could not initialize storage", e);
+            throw new RuntimeException("Cannot init storage", e);
         }
     }
 
-    // ================= SAVE =================
+    @Override
+    public String saveAvatar(MultipartFile file, String userUuid) {
+
+        validateFile(file);
+
+        Path folder = root.resolve("avatar");
+
+        try {
+            Files.createDirectories(folder);
+
+            String fileName = generateAvatarFileName(file, userUuid);
+            Path destination = folder.resolve(fileName).normalize();
+
+            validatePath(destination, folder);
+
+            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            return "/files/avatar/" + fileName;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Save avatar failed", e);
+        }
+    }
+
+    private String generateAvatarFileName(MultipartFile file, String userUuid) {
+
+        String original = sanitize(file.getOriginalFilename());
+        String ext = getExtension(original);
+
+        String baseName = original.replace("." + ext, "");
+
+        return "avatar_" + userUuid + "_" + System.currentTimeMillis() + "." + ext;
+    }
+
+    // ================= SAVE FILE =================
     @Override
     public List<IdeaDocumentEntity> saveFiles(List<MultipartFile> files, IdeaEntity idea) {
 
@@ -67,26 +97,26 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
             totalSize += file.getSize();
             if (totalSize > parseSize(config.getMaxTotalSize())) {
-                throw new IllegalArgumentException("Total upload exceeded");
+                throw new IllegalArgumentException("Total upload exceeded limit");
             }
 
             FileType type = detectFileType(file.getOriginalFilename());
             Path folder = resolveFolder(type);
 
-            String storedName = generateFileName(file);
-            Path destination = folder.resolve(storedName);
+            String fileName = generateFileName(file);
+            Path destination = folder.resolve(fileName).normalize();
 
             validatePath(destination, folder);
 
             try {
                 Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                throw new RuntimeException("Save file failed", e);
+                throw new RuntimeException("Save file failed: " + fileName, e);
             }
 
             IdeaDocumentEntity doc = new IdeaDocumentEntity();
-            doc.setFileName(storedName);
-            doc.setFileUrl("/files/" + type.name().toLowerCase() + "/" + storedName);
+            doc.setFileName(fileName);
+            doc.setFileUrl("/files/" + folder.getFileName() + "/" + fileName);
             doc.setType(type);
             doc.setSize(file.getSize());
             doc.setIdea(idea);
@@ -97,7 +127,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         return result;
     }
 
-    // ================= STREAM FILE =================
+    // ================= LOAD =================
     @Override
     public Resource load(String path) {
         try {
@@ -109,7 +139,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
             Resource resource = new UrlResource(file.toUri());
 
-            if (!resource.exists()) {
+            if (!resource.exists() || !resource.isReadable()) {
                 throw new RuntimeException("File not found");
             }
 
@@ -120,21 +150,58 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         }
     }
 
+    // ================= DELETE =================
     @Override
     public void deleteAll() {
-
+        try (Stream<Path> paths = Files.walk(root)) {
+            paths
+                    .filter(path -> !path.equals(root))
+                    .forEach(path -> path.toFile().delete());
+        } catch (IOException e) {
+            throw new RuntimeException("Delete failed", e);
+        }
     }
 
     @Override
     public Stream<Path> loadAll() {
-        return Stream.empty();
+        try {
+            return Files.walk(root, 1)
+                    .filter(p -> !p.equals(root))
+                    .map(root::relativize);
+        } catch (IOException e) {
+            throw new RuntimeException("Load all failed", e);
+        }
+    }
+
+    // ================= AVATAR =================
+    @Override
+    public String saveAvatar(MultipartFile file) {
+
+        validateFile(file);
+
+        Path folder = root.resolve("avatar");
+
+        try {
+            Files.createDirectories(folder);
+
+            String fileName = generateFileName(file);
+            Path destination = folder.resolve(fileName);
+
+            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            return "/files/avatar/" + fileName;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Save avatar failed", e);
+        }
     }
 
     // ================= FOLDER =================
     private Path resolveFolder(FileType type) {
 
         String folderName = switch (type) {
-            case IMAGE -> "images";
+            case IMAGE -> "image";
+            case VIDEO -> "video";
             case PDF -> "pdf";
             case WORD -> "word";
             case EXCEL -> "excel";
@@ -187,7 +254,6 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
         String baseName = original.replace("." + ext, "");
 
-        // 👉 giữ original name (UX tốt hơn)
         return baseName + "_" + System.currentTimeMillis() + "." + ext;
     }
 
@@ -221,6 +287,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
         return switch (ext) {
             case "jpg", "jpeg", "png", "gif", "webp" -> FileType.IMAGE;
+            case "mp4", "mov", "avi", "mkv" -> FileType.VIDEO;
             case "pdf" -> FileType.PDF;
             case "doc", "docx" -> FileType.WORD;
             case "xls", "xlsx" -> FileType.EXCEL;
@@ -230,35 +297,15 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
     // ================= SIZE PARSER =================
     private long parseSize(String size) {
-        size = size.toUpperCase();
+
+        if (size == null) return 0;
+
+        size = size.trim().toUpperCase();
 
         if (size.endsWith("KB")) return Long.parseLong(size.replace("KB", "")) * 1024;
         if (size.endsWith("MB")) return Long.parseLong(size.replace("MB", "")) * 1024 * 1024;
         if (size.endsWith("GB")) return Long.parseLong(size.replace("GB", "")) * 1024 * 1024 * 1024;
 
         return Long.parseLong(size);
-    }
-
-    // ================= AVATAR =================
-    @Override
-    public String saveAvatar(MultipartFile file) {
-
-        validateFile(file);
-
-        Path folder = root.resolve("avatar");
-
-        try {
-            Files.createDirectories(folder);
-
-            String fileName = generateFileName(file);
-            Path destination = folder.resolve(fileName);
-
-            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
-
-            return "/files/avatar/" + fileName;
-
-        } catch (IOException e) {
-            throw new RuntimeException("Save avatar failed", e);
-        }
     }
 }

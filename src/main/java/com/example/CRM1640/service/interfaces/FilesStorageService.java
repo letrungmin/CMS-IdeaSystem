@@ -9,8 +9,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface FilesStorageService {
-    public void initFilesStorage();
 
+    public String saveAvatar(MultipartFile file, String userUuid);
 
     List<IdeaDocumentEntity> saveFiles(List<MultipartFile> files, IdeaEntity idea);
 

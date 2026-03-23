@@ -5,6 +5,8 @@ import com.example.CRM1640.dto.request.UserRequest;
 import com.example.CRM1640.dto.response.UserResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 public interface AuthenticationService {
     UserResponse save(UserRequest userRequest, MultipartFile avatar);
 

@@ -5,5 +5,6 @@ public enum FileType {
     PDF,
     WORD,
     EXCEL,
+    VIDEO,
     OTHER
 }
