@@ -8,16 +8,20 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 
-@Component
-@ConfigurationProperties(prefix = "file.image") // get all variable starting with file.image in .properties file
+@ConfigurationProperties(prefix = "file")
 @Data
-@ToString
 public class FileConfigProperty {
+
     private String rootPath;
     private String tempFolder;
+
     private String maxSize;
-    private List<String> allowedTypes;
     private String maxTotalSize;
+
+    private List<String> allowedTypes;
+
+    private String storageType;
+
     private boolean enableVersioning;
     private int keepDays;
     private boolean encrypt;

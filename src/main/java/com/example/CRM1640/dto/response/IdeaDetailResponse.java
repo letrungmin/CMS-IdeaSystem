@@ -9,17 +9,26 @@ public record IdeaDetailResponse(
         String title,
         String content,
         boolean anonymous,
+
+        // NEW
+        Long authorId,
         String authorName,
+        String authorAvatar,
+
         String departmentName,
         String academicYearName,
+
         Long viewCount,
         LocalDateTime createdAt,
 
         List<String> categories,
 
         Map<String, Long> reactions,
-        Long totalReactions,
+        long totalReactions,
         String myReaction,
 
-        Long commentCount
+        Long commentCount,
+
+        List<String> images,
+        List<FileResponse> attachments
 ) {}

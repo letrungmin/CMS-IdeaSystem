@@ -18,6 +18,7 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
     // replies
     List<CommentEntity> findByParentId(Long parentId);
 
-    // find by id + idea (safe check)
     Optional<CommentEntity> findByIdAndIdeaId(Long id, Long ideaId);
+
+    List<CommentEntity> findTop2ByParentIdOrderByCreatedAtDesc(Long parentId);
 }

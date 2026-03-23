@@ -1,28 +1,28 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
+import com.example.CRM1640.dto.response.CommentPreviewResponse;
+import com.example.CRM1640.dto.response.FileResponse;
 import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
 import com.example.CRM1640.entities.auth.TermsEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
-import com.example.CRM1640.entities.idea.CategoryEntity;
-import com.example.CRM1640.entities.idea.IdeaCategoryEntity;
-import com.example.CRM1640.entities.idea.IdeaEntity;
-import com.example.CRM1640.entities.idea.ReactionEntity;
+import com.example.CRM1640.entities.idea.*;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.enums.FileType;
 import com.example.CRM1640.enums.ReactionType;
 import com.example.CRM1640.repositories.authen.TermsRepository;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.authen.UserTermsAcceptanceRepository;
-import com.example.CRM1640.repositories.idea.CategoryRepository;
-import com.example.CRM1640.repositories.idea.IdeaCategoryRepository;
-import com.example.CRM1640.repositories.idea.IdeaRepository;
-import com.example.CRM1640.repositories.idea.ReactionRepository;
+import com.example.CRM1640.repositories.idea.*;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
+import com.example.CRM1640.service.interfaces.FilesStorageService;
 import com.example.CRM1640.service.interfaces.IdeaService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,10 +41,13 @@ public class IdeaServiceImpl implements IdeaService {
     private final IdeaCategoryRepository ideaCategoryRepository;
     private final UserRepository userRepository;
     private final ReactionRepository reactionRepository;
+    private final FilesStorageService filesStorageService;
+    private final IdeaDocumentRepository ideaDocumentRepository;
+    private final CommentRepository commentRepository;
 
     @Override
     @Transactional
-    public IdeaResponse submitIdea(CreateIdeaRequest request) {
+    public IdeaResponse submitIdea(CreateIdeaRequest request,List<MultipartFile> files) {
 
         UserEntity user = getCurrentUser();
 
@@ -87,6 +90,12 @@ public class IdeaServiceImpl implements IdeaService {
 
         ideaRepository.save(idea);
 
+        // ================= FILE =================
+        List<IdeaDocumentEntity> documents = filesStorageService.saveFiles(files, idea);
+
+        ideaDocumentRepository.saveAll(documents);
+
+
         // ================= Categories =================
         List<String> categoryNames = new ArrayList<>();
 
@@ -110,21 +119,25 @@ public class IdeaServiceImpl implements IdeaService {
     }
 
     @Override
+    @Transactional
     public IdeaDetailResponse getDetail(Long ideaId) {
 
         UserEntity user = getCurrentUser();
 
-        // ================= IDEA =================
+        // ✅ tăng view DB
+        ideaRepository.increaseViewCount(ideaId);
+
+        // ✅ load lại idea mới nhất
         IdeaEntity idea = ideaRepository.findById(ideaId)
                 .orElseThrow(() -> new RuntimeException("Idea not found"));
-
-        // ================= VIEW COUNT =================
-        idea.setViewCount(idea.getViewCount() + 1);
 
         // ================= AUTHOR =================
         String authorName = idea.isAnonymous()
                 ? "Anonymous"
                 : idea.getAuthor().getFirstName() + " " + idea.getAuthor().getLastName();
+
+        Long authorId = idea.getAuthor().getId();
+        String authorAvatar = idea.getAuthor().getAvatarUrl();
 
         // ================= CATEGORY =================
         List<String> categories = ideaRepository.findCategoryNamesByIdeaId(ideaId);
@@ -152,22 +165,51 @@ public class IdeaServiceImpl implements IdeaService {
                 ? myReactionEntity.getType().name()
                 : "NONE";
 
+        // ================= DOCUMENT =================
+        List<String> images = new ArrayList<>();
+        List<FileResponse> attachments = new ArrayList<>();
+
+        if (idea.getDocuments() != null) {
+            for (IdeaDocumentEntity doc : idea.getDocuments()) {
+
+                if (doc.getType() == FileType.IMAGE) {
+                    images.add(doc.getFileUrl());
+                } else {
+                    attachments.add(new FileResponse(
+                            doc.getFileName(),
+                            doc.getFileUrl(),
+                            doc.getType().name()
+                    ));
+                }
+            }
+        }
+
         // ================= BUILD RESPONSE =================
         return new IdeaDetailResponse(
                 idea.getId(),
                 idea.getTitle(),
                 idea.getContent(),
                 idea.isAnonymous(),
+
+                authorId,
                 authorName,
+                authorAvatar,
+
                 idea.getDepartment().getName(),
                 idea.getAcademicYear().getName(),
+
                 idea.getViewCount(),
                 idea.getCreatedAt(),
+
                 categories,
                 reactionMap,
                 total,
                 myReaction,
-                idea.getCommentCount()
+
+                idea.getCommentCount(),
+
+                images,
+                attachments
         );
     }
 
@@ -195,7 +237,7 @@ public class IdeaServiceImpl implements IdeaService {
     // ================= CURRENT USER =================
     private UserEntity getCurrentUser() {
 
-        String username = "tes6tuser2"; // TODO: replace SecurityContext
+        String username = "tes5tuser2"; // TODO: replace SecurityContext
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
