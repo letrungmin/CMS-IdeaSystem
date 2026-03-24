@@ -1,5 +1,6 @@
 package com.example.CRM1640.entities.idea;
 
+import com.example.CRM1640.enums.FileType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,23 +17,23 @@ public class IdeaDocumentEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String originalName;
+    private String fileName;
 
-    private String storedName;
+    private String fileUrl;
 
-    private String filePath;
+    @Enumerated(EnumType.STRING)
+    private FileType type;
 
-    private Long fileSize;
+    private Long size;
 
-    private String contentType;
-
-    private LocalDateTime uploadedAt;
+    private LocalDateTime createdAt;
 
     @PrePersist
-    protected void prePersist() {
-        uploadedAt = LocalDateTime.now();
+    void prePersist() {
+        createdAt = LocalDateTime.now();
     }
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idea_id")
     private IdeaEntity idea;
 }

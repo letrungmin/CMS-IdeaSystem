@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -55,7 +56,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         UserEntity savedUser = userRepository.save(user);
 
         // Save avatar (if exists)
-        saveAvatarIfPresent(avatar, savedUser.getUuid());
+        saveAvatarIfPresent(avatar, savedUser.getUuid()+"");
+
+        // 👉 SAVE AVATAR
+        String avatarUrl = saveAvatarIfPresent(avatar, user.getUuid()+"");
+
+        if (avatarUrl != null) {
+            user.setAvatarUrl(avatarUrl);
+        }
+
         UserResponse userResponse = userMapper.toResponse(savedUser);
 
         return userResponse;
@@ -85,9 +94,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         return new HashSet<>(roleRepository.findAllById(roleIds));
     }
 
-    private void saveAvatarIfPresent(MultipartFile avatar, UUID userUuid) {
+    private String saveAvatarIfPresent(MultipartFile avatar, String userUuid) {
         if (avatar != null && !avatar.isEmpty()) {
-            filesStorageService.save(avatar, userUuid);
+          return  filesStorageService.saveAvatar(avatar, userUuid);
         }
+        return null;
     }
 }

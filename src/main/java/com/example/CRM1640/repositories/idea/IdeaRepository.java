@@ -2,7 +2,9 @@ package com.example.CRM1640.repositories.idea;
 
 import com.example.CRM1640.entities.idea.IdeaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,4 +18,9 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
     WHERE ic.idea.id = :ideaId
 """)
     List<String> findCategoryNamesByIdeaId(Long ideaId);
+
+
+    @Modifying
+    @Query("UPDATE IdeaEntity i SET i.viewCount = i.viewCount + 1 WHERE i.id = :id")
+    void increaseViewCount(@Param("id") Long id);
 }

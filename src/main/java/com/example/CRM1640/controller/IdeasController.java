@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/idea")
 @RequiredArgsConstructor
@@ -23,9 +25,9 @@ public class IdeasController {
     @PostMapping(value = "/create",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<IdeaResponse> submitIdea(
             @RequestPart("data")  @Valid CreateIdeaRequest request,
-            @RequestPart(value = "image", required = false) MultipartFile image
+            @RequestPart(value = "image", required = false) List<MultipartFile> files
     ) {
-        return ResponseEntity.ok(ideaService.submitIdea(request));
+        return ResponseEntity.ok(ideaService.submitIdea(request,files));
     }
 
     @GetMapping("/{id}")

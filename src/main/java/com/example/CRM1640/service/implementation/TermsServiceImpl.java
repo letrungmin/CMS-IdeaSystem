@@ -82,7 +82,7 @@ public class TermsServiceImpl implements TermService {
     private UserEntity getCurrentUserId() {
 
 
-        String username = "tes6tuser2"; // Test Data, this function will be implemented after the security function completed
+        String username = "te7s6tus99er2"; // Test Data, this function will be implemented after the security function completed
 
 //                SecurityContextHolder.getContext()
 //                .getAuthentication()

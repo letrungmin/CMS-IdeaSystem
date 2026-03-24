@@ -1,136 +1,164 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.config.FileConfigProperty;
+import com.example.CRM1640.entities.idea.IdeaDocumentEntity;
+import com.example.CRM1640.entities.idea.IdeaEntity;
+import com.example.CRM1640.enums.FileType;
 import com.example.CRM1640.service.interfaces.FilesStorageService;
 import jakarta.annotation.PostConstruct;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class FilesStorageServiceImpl implements FilesStorageService {
 
-    final FileConfigProperty fileConfigProperty;
-    Path root;
+    private final FileConfigProperty config;
 
-    private static final int MAX_FILENAME_LENGTH = 100;
-    private static final Set<String> ALLOWED_EXTENSIONS =
-            Set.of("jpg", "jpeg", "png", "pdf");
+    private Path root;
 
+    private static final int MAX_FILENAME_LENGTH = 120;
+
+    // ================= INIT =================
     @PostConstruct
-    private void initRootPath() {
-        this.root = Paths.get(fileConfigProperty.getRootPath())
+    public void init() {
+        if (config.getRootPath() == null) {
+            throw new RuntimeException("File root path not configured!");
+        }
+
+        this.root = Paths.get(config.getRootPath())
                 .toAbsolutePath()
                 .normalize();
-    }
 
-    @Override
-    public void initFilesStorage() {
         try {
-            if (!Files.exists(root)) {
-                Files.createDirectories(root);
-            }
+            Files.createDirectories(root);
         } catch (IOException e) {
-            throw new RuntimeException("Could not initialize storage", e);
+            throw new RuntimeException("Cannot init storage", e);
         }
     }
 
-    // ===============================
-    // SAVE MULTIPLE FILES
-    // ===============================
     @Override
-    public List<String> save(List<MultipartFile> files, UUID uuid) {
+    public String saveAvatar(MultipartFile file, String userUuid) {
 
-        initFilesStorage();
+        validateFile(file);
 
-        if (files == null || files.isEmpty()) {
-            throw new IllegalArgumentException("File list must not be empty");
+        Path folder = root.resolve("avatar");
+
+        try {
+            Files.createDirectories(folder);
+
+            String fileName = generateAvatarFileName(file, userUuid);
+            Path destination = folder.resolve(fileName).normalize();
+
+            validatePath(destination, folder);
+
+            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            return "/files/avatar/" + fileName;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Save avatar failed", e);
         }
+    }
 
-        List<String> storedNames = new ArrayList<>();
+    private String generateAvatarFileName(MultipartFile file, String userUuid) {
+
+        String original = sanitize(file.getOriginalFilename());
+        String ext = getExtension(original);
+
+        String baseName = original.replace("." + ext, "");
+
+        return "avatar_" + userUuid + "_" + System.currentTimeMillis() + "." + ext;
+    }
+
+    // ================= SAVE FILE =================
+    @Override
+    public List<IdeaDocumentEntity> saveFiles(List<MultipartFile> files, IdeaEntity idea) {
+
+        if (files == null || files.isEmpty()) return List.of();
+
+        long totalSize = 0;
+        List<IdeaDocumentEntity> result = new ArrayList<>();
 
         for (MultipartFile file : files) {
 
-            if (file.isEmpty()) {
-                throw new IllegalArgumentException("File must not be empty");
+            validateFile(file);
+
+            totalSize += file.getSize();
+            if (totalSize > parseSize(config.getMaxTotalSize())) {
+                throw new IllegalArgumentException("Total upload exceeded limit");
             }
 
-            String storedName = generateUniqueFileName(file, uuid);
-            Path destination = root.resolve(storedName).normalize();
+            FileType type = detectFileType(file.getOriginalFilename());
+            Path folder = resolveFolder(type);
 
-            // Security check (avoid path traversal)
-            if (!destination.getParent().equals(root)) {
-                throw new RuntimeException("Invalid file path");
-            }
+            String fileName = generateFileName(file);
+            Path destination = folder.resolve(fileName).normalize();
+
+            validatePath(destination, folder);
 
             try {
-                Files.copy(
-                        file.getInputStream(),
-                        destination,
-                        StandardCopyOption.REPLACE_EXISTING
-                );
+                Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                throw new RuntimeException("Failed to store file: " + storedName, e);
+                throw new RuntimeException("Save file failed: " + fileName, e);
             }
 
-            storedNames.add(storedName);
+            IdeaDocumentEntity doc = new IdeaDocumentEntity();
+            doc.setFileName(fileName);
+            doc.setFileUrl("/files/" + folder.getFileName() + "/" + fileName);
+            doc.setType(type);
+            doc.setSize(file.getSize());
+            doc.setIdea(idea);
+
+            result.add(doc);
         }
 
-        return storedNames;
+        return result;
     }
 
-    // ===============================
-    // LOAD FILE
-    // ===============================
+    // ================= LOAD =================
     @Override
-    public Resource load(String filename) {
+    public Resource load(String path) {
         try {
-            Path file = root.resolve(filename).normalize();
+            Path file = root.resolve(path).normalize();
+
+            if (!file.startsWith(root)) {
+                throw new RuntimeException("Invalid path");
+            }
+
             Resource resource = new UrlResource(file.toUri());
 
-            if (resource.exists() && resource.isReadable()) {
-                return resource;
-            } else {
+            if (!resource.exists() || !resource.isReadable()) {
                 throw new RuntimeException("File not found");
             }
 
+            return resource;
+
         } catch (MalformedURLException e) {
-            throw new RuntimeException("File not found", e);
+            throw new RuntimeException("Load file error", e);
         }
     }
 
-    // ===============================
-    // DELETE ALL
-    // ===============================
+    // ================= DELETE =================
     @Override
     public void deleteAll() {
         try (Stream<Path> paths = Files.walk(root)) {
             paths
                     .filter(path -> !path.equals(root))
-                    .map(Path::toFile)
-                    .forEach(File::delete);
+                    .forEach(path -> path.toFile().delete());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to delete files", e);
+            throw new RuntimeException("Delete failed", e);
         }
     }
 
@@ -138,64 +166,146 @@ public class FilesStorageServiceImpl implements FilesStorageService {
     public Stream<Path> loadAll() {
         try {
             return Files.walk(root, 1)
-                    .filter(path -> !path.equals(root))
+                    .filter(p -> !p.equals(root))
                     .map(root::relativize);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load files", e);
+            throw new RuntimeException("Load all failed", e);
         }
     }
 
-    // ===============================
-    // HELPER METHODS
-    // ===============================
+    // ================= AVATAR =================
+    @Override
+    public String saveAvatar(MultipartFile file) {
 
-    private String getOriginalFileName(MultipartFile file) {
-        String filename = file.getOriginalFilename();
+        validateFile(file);
 
-        if (filename == null || filename.isBlank()) {
-            throw new IllegalArgumentException("Original file name must not be null or blank");
+        Path folder = root.resolve("avatar");
+
+        try {
+            Files.createDirectories(folder);
+
+            String fileName = generateFileName(file);
+            Path destination = folder.resolve(fileName);
+
+            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            return "/files/avatar/" + fileName;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Save avatar failed", e);
         }
-
-        return Path.of(filename).getFileName().toString();
     }
 
-    private String sanitizeFileName(String fileName) {
+    // ================= FOLDER =================
+    private Path resolveFolder(FileType type) {
+
+        String folderName = switch (type) {
+            case IMAGE -> "image";
+            case VIDEO -> "video";
+            case PDF -> "pdf";
+            case WORD -> "word";
+            case EXCEL -> "excel";
+            default -> "other";
+        };
+
+        Path folder = root.resolve(folderName);
+
+        try {
+            Files.createDirectories(folder);
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot create folder", e);
+        }
+
+        return folder;
+    }
+
+    // ================= VALIDATION =================
+    private void validateFile(MultipartFile file) {
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File empty");
+        }
+
+        long maxSize = parseSize(config.getMaxSize());
+
+        if (file.getSize() > maxSize) {
+            throw new IllegalArgumentException("File too large");
+        }
+
+        String contentType = file.getContentType();
+
+        if (contentType == null ||
+                !config.getAllowedTypes().contains(contentType)) {
+            throw new IllegalArgumentException("Invalid MIME type: " + contentType);
+        }
+    }
+
+    private void validatePath(Path path, Path folder) {
+        if (!path.normalize().startsWith(folder)) {
+            throw new RuntimeException("Path traversal attack");
+        }
+    }
+
+    // ================= FILE NAME =================
+    private String generateFileName(MultipartFile file) {
+
+        String original = sanitize(file.getOriginalFilename());
+        String ext = getExtension(original);
+
+        String baseName = original.replace("." + ext, "");
+
+        return baseName + "_" + System.currentTimeMillis() + "." + ext;
+    }
+
+    private String sanitize(String fileName) {
+
+        if (fileName == null) throw new IllegalArgumentException("Invalid name");
 
         String normalized = Normalizer.normalize(fileName, Normalizer.Form.NFKC);
 
         String safe = normalized.replaceAll("[^a-zA-Z0-9._-]", "_");
 
         return safe.length() > MAX_FILENAME_LENGTH
-                ? safe.substring(safe.length() - MAX_FILENAME_LENGTH)
+                ? safe.substring(0, MAX_FILENAME_LENGTH)
                 : safe;
     }
 
-    private String extractExtension(String fileName) {
+    private String getExtension(String fileName) {
 
-        int dotIndex = fileName.lastIndexOf('.');
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0) return "bin";
 
-        if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
-            throw new IllegalArgumentException("File must have an extension");
-        }
-
-        String extension = fileName.substring(dotIndex + 1).toLowerCase();
-
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("File type not allowed: " + extension);
-        }
-
-        return extension;
+        return fileName.substring(dot + 1).toLowerCase();
     }
 
-    private String generateUniqueFileName(MultipartFile file, UUID uuid) {
+    // ================= FILE TYPE =================
+    private FileType detectFileType(String filename) {
 
-        String originalName = getOriginalFileName(file);
-        String safeName = sanitizeFileName(originalName);
-        String extension = extractExtension(safeName);
+        if (filename == null) return FileType.OTHER;
 
-        return uuid + "_" + System.currentTimeMillis() + "." + extension;
+        String ext = getExtension(filename);
+
+        return switch (ext) {
+            case "jpg", "jpeg", "png", "gif", "webp" -> FileType.IMAGE;
+            case "mp4", "mov", "avi", "mkv" -> FileType.VIDEO;
+            case "pdf" -> FileType.PDF;
+            case "doc", "docx" -> FileType.WORD;
+            case "xls", "xlsx" -> FileType.EXCEL;
+            default -> FileType.OTHER;
+        };
+    }
+
+    // ================= SIZE PARSER =================
+    private long parseSize(String size) {
+
+        if (size == null) return 0;
+
+        size = size.trim().toUpperCase();
+
+        if (size.endsWith("KB")) return Long.parseLong(size.replace("KB", "")) * 1024;
+        if (size.endsWith("MB")) return Long.parseLong(size.replace("MB", "")) * 1024 * 1024;
+        if (size.endsWith("GB")) return Long.parseLong(size.replace("GB", "")) * 1024 * 1024 * 1024;
+
+        return Long.parseLong(size);
     }
 }
-
-
-

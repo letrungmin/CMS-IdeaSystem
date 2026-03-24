@@ -3,9 +3,12 @@ package com.example.CRM1640.service.interfaces;
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
 import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 public interface IdeaService {
-    IdeaResponse submitIdea(CreateIdeaRequest request);
+    IdeaResponse submitIdea(CreateIdeaRequest request, List<MultipartFile> files);
 
     IdeaDetailResponse getDetail(Long ideaId);
 }

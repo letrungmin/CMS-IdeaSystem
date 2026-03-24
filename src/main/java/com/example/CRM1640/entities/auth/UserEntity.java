@@ -64,6 +64,9 @@ public class UserEntity {
 
     private String address;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl = "/files/default/avatar.png";
+
     // ===== RBAC =====
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
