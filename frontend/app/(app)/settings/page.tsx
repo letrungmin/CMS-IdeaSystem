@@ -3,7 +3,11 @@
 import React, { useState } from "react";
 import { 
   User, Bell, Lock, Eye, Globe, Palette, 
+<<<<<<< HEAD
   Save, ShieldCheck, Mail, Smartphone, Heart 
+=======
+  Save, ShieldCheck, Mail, Smartphone 
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
 } from "lucide-react";
 
 export default function SettingsPage() {

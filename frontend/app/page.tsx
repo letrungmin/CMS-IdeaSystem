@@ -1,4 +1,5 @@
 "use client";
+<<<<<<< HEAD
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -85,6 +86,58 @@ export default function IndexPage() {
   return (
     <main className="relative min-h-screen w-full overflow-hidden font-sans">
       
+=======
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { LogIn, ArrowRight, Lightbulb, ShieldCheck, Mail, Lock, Loader2, X } from "lucide-react";
+import Logo from "@/components/Logo";
+
+// 3D Animation Variants for Framer Motion
+const containerVariants = {
+  hidden: { opacity: 0, scale: 0.8, y: 50, rotateX: -15 },
+  visible: { 
+    opacity: 1, 
+    scale: 1, 
+    y: 0, 
+    rotateX: 0,
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } 
+  },
+  exit: { 
+    opacity: 0, 
+    scale: 0.9, 
+    y: -30, 
+    rotateX: 15,
+    transition: { duration: 0.4 } 
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { y: 0, opacity: 1, transition: { duration: 0.4 } }
+};
+
+export default function IndexPage() {
+  const router = useRouter();
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fake login handler
+  const handleFakeLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setTimeout(() => {
+      // Set default role for testing the main layout
+      localStorage.setItem("user_role", "ROLE_STUDENT"); 
+      router.push("/home"); // Navigate to app/(app)/home/page.tsx
+    }, 1500);
+  };
+
+  return (
+    <main className="relative min-h-screen w-full overflow-hidden font-sans">
+      
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
       {/* ---------- BACKGROUND VIDEO LAYER ---------- */}
       <video
         autoPlay
@@ -103,8 +156,15 @@ export default function IndexPage() {
       {/* ---------- MAIN CONTENT LAYER ---------- */}
       <div className="relative z-20 flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
         
+<<<<<<< HEAD
         {/* Global Header */}
         <header className="fixed top-0 left-0 w-full z-30 px-6 py-4 flex items-center justify-between border-b border-white/20 bg-white/10 backdrop-blur-md">
+=======
+        {/* Global Header (Glassmorphism style with NEW LOGO) */}
+        <header className="fixed top-0 left-0 w-full z-30 px-6 py-4 flex items-center justify-between border-b border-white/20 bg-white/10 backdrop-blur-md">
+          
+          {/* Logo with Dark Theme enabled for transparent background */}
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
           <Logo className="h-10 drop-shadow-md" showText={true} darkTheme={true} />
 
           {!showLoginForm && (
@@ -120,7 +180,11 @@ export default function IndexPage() {
         <AnimatePresence mode="wait">
           {!showLoginForm ? (
             
+<<<<<<< HEAD
             //LANDING PAGE INTRO
+=======
+            // ---------- LANDING PAGE INTRO ----------
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
             <motion.div
               key="landing"
               initial={{ opacity: 0, y: 20 }}
@@ -173,7 +237,11 @@ export default function IndexPage() {
 
           ) : (
             
+<<<<<<< HEAD
             // 3D GLASSMORPHISM LOGIN FORM
+=======
+            // ---------- 3D GLASSMORPHISM LOGIN FORM ----------
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
             <motion.div
               key="login-form"
               variants={containerVariants}
@@ -193,11 +261,16 @@ export default function IndexPage() {
                   <X className="w-4 h-4" />
                 </button>
 
+<<<<<<< HEAD
                 <motion.div variants={itemVariants} className="text-center mb-6">
+=======
+                <motion.div variants={itemVariants} className="text-center mb-8">
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
                   <h2 className="text-3xl font-extrabold text-white tracking-tight">Welcome Back</h2>
                   <p className="text-slate-300 mt-2 font-medium text-sm">Sign in to your university account</p>
                 </motion.div>
 
+<<<<<<< HEAD
                 {/* ERROR BANNER */}
                 {error && (
                   <motion.div variants={itemVariants} className="mb-6 p-3 rounded-xl bg-red-500/20 border border-red-500/50 flex items-center gap-3 backdrop-blur-md">
@@ -217,6 +290,16 @@ export default function IndexPage() {
                         name="identifier" 
                         value={formData.identifier}
                         onChange={handleChange}
+=======
+                <form onSubmit={handleFakeLogin} className="space-y-5">
+                  
+                  <motion.div variants={itemVariants}>
+                    <label className="block text-sm font-semibold text-slate-200 mb-1.5 drop-shadow-sm">University Email</label>
+                    <div className="relative group">
+                      <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-white transition-colors" />
+                      <input 
+                        type="email" 
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
                         required
                         placeholder="your.name@greenwich.edu.vn" 
                         className="w-full h-12 bg-white/10 border border-white/20 rounded-xl pl-12 pr-4 text-white placeholder:text-slate-400 outline-none transition-all focus:border-white focus:bg-white/20 shadow-inner backdrop-blur-md"
@@ -233,9 +316,12 @@ export default function IndexPage() {
                       <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-white transition-colors" />
                       <input 
                         type="password" 
+<<<<<<< HEAD
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
+=======
+>>>>>>> ce7d26faf57dbd960db18dedb1323adf3e65d957
                         required
                         placeholder="••••••••••••" 
                         className="w-full h-12 bg-white/10 border border-white/20 rounded-xl pl-12 pr-4 text-white placeholder:text-slate-400 outline-none transition-all focus:border-white focus:bg-white/20 shadow-inner backdrop-blur-md"
