@@ -16,7 +16,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* KHÔNG CÓ SIDEBAR HAY TOPBAR Ở ĐÂY NỮA NHÉ BỆ HẠ! */}
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
         {children}
       </body>
