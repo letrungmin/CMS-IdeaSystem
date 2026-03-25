@@ -20,6 +20,10 @@ import com.example.CRM1640.service.interfaces.FilesStorageService;
 import com.example.CRM1640.service.interfaces.IdeaService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -124,10 +128,10 @@ public class IdeaServiceImpl implements IdeaService {
 
         UserEntity user = getCurrentUser();
 
-        // ✅ tăng view DB
+        // Increase View In DB
         ideaRepository.increaseViewCount(ideaId);
 
-        // ✅ load lại idea mới nhất
+        // Load the latest Idea again
         IdeaEntity idea = ideaRepository.findById(ideaId)
                 .orElseThrow(() -> new RuntimeException("Idea not found"));
 
@@ -213,6 +217,29 @@ public class IdeaServiceImpl implements IdeaService {
         );
     }
 
+    @Override
+    public Page<IdeaDetailResponse> getAllIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        return ideaRepository.findAll(pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getMyIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        return ideaRepository
+                .findByAuthorIdOrderByCreatedAtDesc(user.getId(), pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
     // ================= RESPONSE =================
     private IdeaResponse buildResponse(IdeaEntity idea, List<String> categories) {
 
@@ -231,6 +258,91 @@ public class IdeaServiceImpl implements IdeaService {
                 idea.getDepartment().getName(),
                 idea.getAcademicYear().getName(),
                 categories
+        );
+    }
+
+
+    private IdeaDetailResponse buildFullResponse(IdeaEntity idea, UserEntity currentUser) {
+
+        // ================= AUTHOR =================
+        String authorName = idea.isAnonymous()
+                ? "Anonymous"
+                : idea.getAuthor().getFirstName() + " " + idea.getAuthor().getLastName();
+
+        Long authorId = idea.getAuthor().getId();
+        String authorAvatar = idea.getAuthor().getAvatarUrl();
+
+        // ================= CATEGORY =================
+        List<String> categories = ideaRepository.findCategoryNamesByIdeaId(idea.getId());
+
+        // ================= REACTION =================
+        List<Object[]> result = reactionRepository.countGroupByType(idea.getId());
+
+        Map<String, Long> reactionMap = new HashMap<>();
+        long total = 0;
+
+        for (Object[] row : result) {
+            ReactionType type = (ReactionType) row[0];
+            Long count = (Long) row[1];
+
+            reactionMap.put(type.name(), count);
+            total += count;
+        }
+
+        // ================= MY REACTION =================
+        ReactionEntity myReactionEntity = reactionRepository
+                .findByUserIdAndIdeaId(currentUser.getId(), idea.getId())
+                .orElse(null);
+
+        String myReaction = myReactionEntity != null
+                ? myReactionEntity.getType().name()
+                : "NONE";
+
+        // ================= DOCUMENT =================
+        List<String> images = new ArrayList<>();
+        List<FileResponse> attachments = new ArrayList<>();
+
+        if (idea.getDocuments() != null) {
+            for (IdeaDocumentEntity doc : idea.getDocuments()) {
+
+                if (doc.getType() == FileType.IMAGE) {
+                    images.add("/api/v1" + doc.getFileUrl());
+                } else {
+                    attachments.add(new FileResponse(
+                            doc.getFileName(),
+                            "/api/v1" + doc.getFileUrl(),
+                            doc.getType().name()
+                    ));
+                }
+            }
+        }
+
+        // ================= BUILD =================
+        return new IdeaDetailResponse(
+                idea.getId(),
+                idea.getTitle(),
+                idea.getContent(),
+                idea.isAnonymous(),
+
+                authorId,
+                authorName,
+                authorAvatar,
+
+                idea.getDepartment().getName(),
+                idea.getAcademicYear().getName(),
+
+                idea.getViewCount(),
+                idea.getCreatedAt(),
+
+                categories,
+                reactionMap,
+                total,
+                myReaction,
+
+                idea.getCommentCount(),
+
+                images,
+                attachments
         );
     }
 
