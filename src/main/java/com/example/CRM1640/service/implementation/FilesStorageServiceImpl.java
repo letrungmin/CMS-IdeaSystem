@@ -227,17 +227,36 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         }
 
         long maxSize = parseSize(config.getMaxSize());
-
         if (file.getSize() > maxSize) {
             throw new IllegalArgumentException("File too large");
         }
 
         String contentType = file.getContentType();
+        String fileName = file.getOriginalFilename();
 
-        if (contentType == null ||
-                !config.getAllowedTypes().contains(contentType)) {
-            throw new IllegalArgumentException("Invalid MIME type: " + contentType);
+        // ✅ check MIME (nếu có)
+        boolean validMime = contentType != null &&
+                config.getAllowedTypes().contains(contentType);
+
+        // check extension (fallback)
+        boolean validExt = fileName != null && isAllowedExtension(fileName);
+
+        if (!validMime && !validExt) {
+            throw new IllegalArgumentException("Invalid file type: " + contentType);
         }
+    }
+
+    private boolean isAllowedExtension(String fileName) {
+
+        String ext = getExtension(fileName);
+
+        return switch (ext) {
+            case "png", "jpg", "jpeg", "webp",
+                 "pdf", "doc", "docx",
+                 "xls", "xlsx",
+                 "mp4", "mov", "avi", "mkv" -> true; // ✅ thêm video
+            default -> false;
+        };
     }
 
     private void validatePath(Path path, Path folder) {
