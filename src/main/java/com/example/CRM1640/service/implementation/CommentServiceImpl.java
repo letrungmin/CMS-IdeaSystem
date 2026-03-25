@@ -5,9 +5,14 @@ import com.example.CRM1640.dto.response.CommentResponse;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.idea.CommentEntity;
 import com.example.CRM1640.entities.idea.IdeaEntity;
+import com.example.CRM1640.entities.idea.ReactionEntity;
+import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.enums.ReactionType;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
+import com.example.CRM1640.repositories.idea.ReactionRepository;
+import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.CommentService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +21,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.*;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +34,8 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final IdeaRepository ideaRepository;
     private final UserRepository userRepository;
+    private final ReactionRepository reactionRepository;
+    private final AcademicYearRepository academicYearRepository;
 
     // ================= CREATE =================
     @Override
@@ -36,15 +47,22 @@ public class CommentServiceImpl implements CommentService {
         IdeaEntity idea = ideaRepository.findById(request.ideaId())
                 .orElseThrow(() -> new RuntimeException("Idea not found"));
 
+        // ================= CHECK FINAL CLOSURE =================
+
+        AcademicYearEntity academicYear = academicYearRepository
+                .findFirstByActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year"));
+
+        if (LocalDateTime.now().isAfter(academicYear.getFinalClosureDate())) {
+            throw new RuntimeException("Comment period has ended");
+        }
+
         CommentEntity parent = null;
 
-        // handle reply
         if (request.parentId() != null) {
-
             parent = commentRepository.findById(request.parentId())
                     .orElseThrow(() -> new RuntimeException("Parent comment not found"));
 
-            // IMPORTANT: ensure same idea
             if (!parent.getIdea().getId().equals(idea.getId())) {
                 throw new RuntimeException("Invalid parent comment");
             }
@@ -59,7 +77,6 @@ public class CommentServiceImpl implements CommentService {
 
         commentRepository.save(comment);
 
-        // ================= UPDATE COUNT =================
         idea.setCommentCount(idea.getCommentCount() + 1);
 
         if (parent != null) {
@@ -104,24 +121,56 @@ public class CommentServiceImpl implements CommentService {
     // ================= MAPPER =================
     private CommentResponse mapToResponse(CommentEntity c, List<CommentResponse> replies) {
 
+        UserEntity currentUser = getCurrentUser();
+
+        // ================= AUTHOR =================
         String authorName = c.isAnonymous()
                 ? "Anonymous"
                 : c.getAuthor().getFirstName() + " " + c.getAuthor().getLastName();
 
+        // ================= REACTION MAP =================
+        List<Object[]> result = reactionRepository.countGroupByComment(c.getId());
+
+        Map<String, Long> reactionMap = new HashMap<>();
+        long total = 0;
+
+        for (Object[] row : result) {
+            ReactionType type = (ReactionType) row[0];
+            Long count = (Long) row[1];
+
+            reactionMap.put(type.name(), count);
+            total += count;
+        }
+
+        // ================= MY REACTION =================
+        ReactionEntity myReactionEntity = reactionRepository
+                .findByCommentIdAndUserId(c.getId(), currentUser.getId())
+                .orElse(null);
+
+        String myReaction = myReactionEntity != null
+                ? myReactionEntity.getType().name()
+                : "NONE";
+
+        // ================= BUILD =================
         return new CommentResponse(
                 c.getId(),
                 c.getContent(),
                 authorName,
                 c.isAnonymous(),
                 c.getCreatedAt(),
+
                 c.getReplyCount(),
-                c.getLikeCount(),
+
+                reactionMap,
+                total,
+                myReaction,
+
                 replies
         );
     }
 
     private UserEntity getCurrentUser() {
-        return userRepository.findByUsername("testuser")
+        return userRepository.findByUsername("tes5tuser2")
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

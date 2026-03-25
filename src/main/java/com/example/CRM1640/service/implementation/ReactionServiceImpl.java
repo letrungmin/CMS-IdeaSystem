@@ -7,15 +7,19 @@ import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.idea.CommentEntity;
 import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.entities.idea.ReactionEntity;
+import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.enums.ReactionType;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
 import com.example.CRM1640.repositories.idea.ReactionRepository;
+import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.ReactionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +32,7 @@ public class ReactionServiceImpl implements ReactionService {
     private final IdeaRepository ideaRepository;
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
+    private final AcademicYearRepository academicYearRepository;
 
     // ================= IDEA REACTION =================
     @Override
@@ -35,6 +40,16 @@ public class ReactionServiceImpl implements ReactionService {
     public ReactionResponse react(ReactionRequest request) {
 
         UserEntity user = getCurrentUser();
+
+        // ================= CHECK FINAL CLOSURE =================
+
+        AcademicYearEntity academicYear = academicYearRepository
+                .findFirstByActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year"));
+
+        if (LocalDateTime.now().isAfter(academicYear.getFinalClosureDate())) {
+            throw new RuntimeException("Reaction Idea period has ended");
+        }
 
         IdeaEntity idea = ideaRepository.findById(request.getIdeaId())
                 .orElseThrow(() -> new RuntimeException("Idea not found"));
@@ -84,6 +99,17 @@ public class ReactionServiceImpl implements ReactionService {
     public ReactionResponse reactComment(ReactCommentRequest request) {
 
         UserEntity user = getCurrentUser();
+
+
+        // ================= CHECK FINAL CLOSURE =================
+
+        AcademicYearEntity academicYear = academicYearRepository
+                .findFirstByActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year"));
+
+        if (LocalDateTime.now().isAfter(academicYear.getFinalClosureDate())) {
+            throw new RuntimeException("Reaction Comment period has ended");
+        }
 
         CommentEntity comment = commentRepository.findById(request.commentId())
                 .orElseThrow(() -> new RuntimeException("Comment not found"));
