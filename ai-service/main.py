@@ -1,88 +1,134 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
+import chromadb
 import time
+import os
 import torch
 
 # Initialize FastAPI Application
 app = FastAPI(
-    title="CMS Idea AI Engine",
-    description="Research-grade AI service for Semantic Deduplication and RAG",
-    version="1.0.0"
+    title="CMS Idea AI Engine (RAG Architecture)",
+    description="Vector Database powered Semantic Search & Deduplication for Idea Management System.",
+    version="2.0.0"
 )
 
-# Load the Sentence Transformer Model globally so it only loads once on startup
-print("Initializing AI Engine...")
-print("Downloading/Loading 'all-MiniLM-L6-v2' model. This might take a moment on the first run...")
+print("Initializing AI Engine & Vector Database...")
 
-# Use MPS (Metal Performance Shaders) if available on Mac M-series, else CPU
+# 1. Setup AI Model
+# Automatically use Metal Performance Shaders (MPS) on Apple Silicon, fallback to CPU
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 
-print(f"Model successfully loaded and running on: {device.upper()}")
+# 2. Setup Vector Database (ChromaDB)
+# Creates a persistent directory to store vectors permanently on disk
+db_path = os.path.join(os.getcwd(), "vector_store")
+chroma_client = chromadb.PersistentClient(path=db_path)
 
-# Define the input payload structure using Pydantic
-class IdeaInput(BaseModel):
-    new_idea: str
-    existing_ideas: list[str]
+# Create or get the collection for storing ideas using Cosine Similarity space
+collection = chroma_client.get_or_create_collection(
+    name="cms_ideas",
+    metadata={"hnsw:space": "cosine"}
+)
+
+print(f"System Ready! Running on: {device.upper()}")
+print(f"Current Ideas in VectorDB: {collection.count()}")
+
+# --- DATA MODELS ---
+class IdeaPayload(BaseModel):
+    idea_id: str
+    content: str
+    category: str = "general"
+
+class CheckPayload(BaseModel):
+    content: str
+
+# --- API ENDPOINTS ---
 
 @app.get("/")
 def health_check():
-    """Simple health check endpoint."""
+    """Health check endpoint to verify system status."""
     return {
-        "status": "online", 
-        "engine": "FastAPI + SentenceTransformers",
-        "device": device
+        "status": "online",
+        "engine": "FastAPI + ChromaDB + SentenceTransformers",
+        "device": device,
+        "total_ideas_indexed": collection.count()
     }
 
-@app.post("/api/v1/ai/check-duplicate")
-def check_semantic_duplicate(data: IdeaInput):
+@app.post("/api/v1/ai/ideas")
+def store_idea_in_vector_db(data: IdeaPayload):
     """
-    Analyzes a new idea against a list of existing ideas to find semantic duplicates.
-    Returns the similarity score and a boolean flag based on a predefined threshold.
+    Vectorizes a new idea and stores it permanently in ChromaDB.
+    The Main Java Backend should call this endpoint upon a successful idea submission.
+    """
+    try:
+        # 1. Convert text to a dense vector embedding
+        embedding = model.encode(data.content).tolist()
+        
+        # 2. Store in Vector Database
+        collection.add(
+            embeddings=[embedding],
+            documents=[data.content],
+            metadatas=[{"category": data.category}],
+            ids=[data.idea_id]
+        )
+        return {
+            "status": "success", 
+            "message": f"Idea {data.idea_id} successfully vectorized and stored."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store idea: {str(e)}")
+
+@app.post("/api/v1/ai/check-duplicate")
+def check_semantic_duplicate(data: CheckPayload):
+    """
+    RAG Search: Queries the VectorDB to find the most semantically similar existing idea.
+    Returns duplication status based on a predefined similarity threshold.
     """
     start_time = time.time()
     
-    if not data.existing_ideas:
+    # Handle edge case: Empty database
+    if collection.count() == 0:
         return {
             "is_duplicate": False, 
-            "highest_similarity_score": 0.0, 
-            "message": "The existing ideas list is empty."
+            "highest_similarity_score": 0.0,
+            "message": "Vector Database is empty. Safe to submit."
         }
 
     try:
-        # 1. Encode the new idea into a dense vector embedding
-        new_idea_embedding = model.encode(data.new_idea, convert_to_tensor=True)
+        # 1. Encode the incoming query
+        query_embedding = model.encode(data.content).tolist()
         
-        # 2. Encode the list of existing ideas
-        # (In a production RAG system, these would be pre-computed and fetched from a VectorDB)
-        existing_embeddings = model.encode(data.existing_ideas, convert_to_tensor=True)
-        
-        # 3. Compute Cosine Similarity between the new idea and all existing ideas
-        cosine_scores = util.cos_sim(new_idea_embedding, existing_embeddings)[0]
-        
-        # 4. Find the idea with the highest similarity score
-        best_match_idx = cosine_scores.argmax().item()
-        best_score = cosine_scores[best_match_idx].item()
-        
-        # Define the strictness threshold (e.g., 0.80 means 80% semantic similarity)
-        SIMILARITY_THRESHOLD = 0.60
-        is_duplicate = best_score >= SIMILARITY_THRESHOLD
+        # 2. Query VectorDB for the top 1 most similar match
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=1,
+            include=["documents", "distances", "metadatas"]
+        )
         
         processing_time_ms = round((time.time() - start_time) * 1000, 2)
         
+        # ChromaDB Cosine Space: Distance = 1 - Cosine Similarity.
+        distance = results["distances"][0][0]
+        similarity_score = 1 - distance
+        
+        # Define strictness threshold
+        SIMILARITY_THRESHOLD = 0.60
+        is_duplicate = similarity_score >= SIMILARITY_THRESHOLD
+        
         return {
             "is_duplicate": is_duplicate,
-            "highest_similarity_score": round(best_score, 4),
-            "most_similar_idea": data.existing_ideas[best_match_idx],
+            "highest_similarity_score": round(similarity_score, 4),
+            "most_similar_idea": results["documents"][0][0],
+            "matched_idea_id": results["ids"][0][0],
+            "matched_category": results["metadatas"][0][0].get("category", "unknown"),
             "processing_time_ms": processing_time_ms,
             "threshold_used": SIMILARITY_THRESHOLD
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Engine Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"RAG Engine Search Error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
-    # Run the server on port 8000
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
