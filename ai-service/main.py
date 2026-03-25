@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import chromadb
 import time
@@ -9,9 +9,9 @@ import torch
 
 # Initialize FastAPI Application
 app = FastAPI(
-    title="CMS Idea AI Engine (RAG & XAI Architecture)",
-    description="Vector DB Semantic Search and Explainable Auto-Categorization.",
-    version="3.0.0"
+    title="CMS Idea AI Engine (RAG, XAI & OOD Architecture)",
+    description="Vector DB Semantic Search, Explainable AI, and Out-of-Distribution Detection.",
+    version="4.0.0"
 )
 
 print("Initializing AI Engine, Vector Database, and LLM...")
@@ -19,11 +19,23 @@ print("Initializing AI Engine, Vector Database, and LLM...")
 # Automatically use Metal Performance Shaders (MPS) on Apple Silicon, fallback to CPU
 device_str = "mps" if torch.backends.mps.is_available() else "cpu"
 
-# 1. Setup Encoding Model for RAG
+# 1. Setup Encoding Model for RAG & OOD
 model = SentenceTransformer('all-MiniLM-L6-v2', device=device_str)
 
-# 2. Setup Generative LLM explicitly (Bypassing pipeline wrapper issues)
-print("Loading Generative LLM (Google Flan-T5-Base). This might take a moment...")
+# --- OOD DOMAIN ANCHORS INITIALIZATION ---
+print("Encoding OOD Domain Anchors...")
+DOMAIN_ANCHORS = [
+    "university campus facilities, classrooms, and buildings",
+    "student academic curriculum, exams, and educational courses",
+    "information technology infrastructure, library wifi, and software",
+    "student services, psychological counseling, health, and wellbeing",
+    "university administration, campus events, and school policies"
+]
+# Pre-compute anchor embeddings at startup for lightning-fast OOD checks
+anchor_embeddings = model.encode(DOMAIN_ANCHORS, convert_to_tensor=True)
+
+# 2. Setup Generative LLM explicitly for XAI
+print("Loading Generative LLM (Google Flan-T5-Base)...")
 tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
 llm_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base").to(device_str)
 
@@ -44,10 +56,7 @@ class IdeaPayload(BaseModel):
     content: str
     category: str = "general"
 
-class CheckPayload(BaseModel):
-    content: str
-
-class CategorizePayload(BaseModel):
+class TextPayload(BaseModel):
     content: str
 
 # --- API ENDPOINTS ---
@@ -57,7 +66,7 @@ def health_check():
     """Health check endpoint to verify system status."""
     return {
         "status": "online",
-        "engine": "FastAPI + ChromaDB + SentenceTransformers + Flan-T5 explicitly loaded",
+        "engine": "FastAPI + ChromaDB + SentenceTransformers + Flan-T5",
         "device": device_str
     }
 
@@ -77,7 +86,7 @@ def store_idea_in_vector_db(data: IdeaPayload):
         raise HTTPException(status_code=500, detail=f"Failed to store idea: {str(e)}")
 
 @app.post("/api/v1/ai/check-duplicate")
-def check_semantic_duplicate(data: CheckPayload):
+def check_semantic_duplicate(data: TextPayload):
     """RAG Search: Queries the VectorDB to find the most semantically similar existing idea."""
     start_time = time.time()
     if collection.count() == 0:
@@ -108,32 +117,58 @@ def check_semantic_duplicate(data: CheckPayload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search Error: {str(e)}")
 
+@app.post("/api/v1/ai/check-ood")
+def detect_out_of_distribution(data: TextPayload):
+    """
+    OOD Detection: Calculates semantic distance between the input and core university domains.
+    Flags inputs that are completely unrelated to university contexts (Spam/Trolls).
+    """
+    start_time = time.time()
+    try:
+        # Encode the incoming text
+        query_embedding = model.encode(data.content, convert_to_tensor=True)
+        
+        # Calculate cosine similarity against all domain anchors
+        cosine_scores = util.cos_sim(query_embedding, anchor_embeddings)[0]
+        
+        # Get the highest similarity score to ANY valid university domain
+        max_relevance_score = cosine_scores.max().item()
+        
+        # Threshold for Out-of-Distribution (Usually between 0.20 and 0.30)
+        OOD_THRESHOLD = 0.25
+        is_ood = max_relevance_score < OOD_THRESHOLD
+        
+        processing_time_ms = round((time.time() - start_time) * 1000, 2)
+        
+        reason = "Input is completely unrelated to university domains." if is_ood else "Input aligns with university context."
+        
+        return {
+            "is_out_of_distribution": is_ood,
+            "domain_relevance_score": round(max_relevance_score, 4),
+            "threshold": OOD_THRESHOLD,
+            "reason": reason,
+            "processing_time_ms": processing_time_ms
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OOD Detection Error: {str(e)}")
+
 @app.post("/api/v1/ai/categorize")
-def explainable_auto_categorization(data: CategorizePayload):
-    """
-    XAI Endpoint: Automatically categorizes an idea and provides a logical explanation.
-    Uses explicit Tokenizer and Generation mapping.
-    """
+def explainable_auto_categorization(data: TextPayload):
+    """XAI Endpoint: Automatically categorizes an idea and provides a logical explanation."""
     start_time = time.time()
     allowed_categories = "IT Infrastructure, Campus Facilities, Curriculum Enhancement, Student Services"
     
     try:
-        # Prompt 1: Force the LLM to choose a category
         cat_prompt = f"Classify the following university idea into exactly one of these categories: {allowed_categories}.\n\nIdea: {data.content}\n\nCategory:"
-        
-        # Explicit Generation Process
         cat_inputs = tokenizer(cat_prompt, return_tensors="pt").to(device_str)
         cat_outputs = llm_model.generate(**cat_inputs, max_new_tokens=15)
         predicted_category = tokenizer.decode(cat_outputs[0], skip_special_tokens=True).strip()
         
-        # Fallback if the LLM hallucinates outside the list
         valid_categories = [c.strip().lower() for c in allowed_categories.split(",")]
         if not any(cat in predicted_category.lower() for cat in valid_categories):
             predicted_category = "General / Uncategorized"
 
-        # Prompt 2: Force the LLM to explain ITS reasoning
         exp_prompt = f"Briefly explain why the idea '{data.content}' is classified as '{predicted_category}'."
-        
         exp_inputs = tokenizer(exp_prompt, return_tensors="pt").to(device_str)
         exp_outputs = llm_model.generate(**exp_inputs, max_new_tokens=60)
         explanation = tokenizer.decode(exp_outputs[0], skip_special_tokens=True).strip()
