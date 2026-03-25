@@ -2,6 +2,7 @@ package com.example.CRM1640.dto.response;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record CommentResponse(
         Long id,
@@ -9,7 +10,12 @@ public record CommentResponse(
         String authorName,
         boolean anonymous,
         LocalDateTime createdAt,
+
         Long replyCount,
-        Long likeCount,
+
+        Map<String, Long> reactions,
+        Long totalReactions,
+        String myReaction,
+
         List<CommentResponse> replies
 ) {}

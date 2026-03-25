@@ -3,6 +3,7 @@ package com.example.CRM1640.repositories.idea;
 import com.example.CRM1640.entities.idea.ReactionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
@@ -34,4 +35,13 @@ public interface ReactionRepository extends JpaRepository<ReactionEntity,Long> {
         GROUP BY r.type
     """)
     List<Object[]> countByCommentGroupByType(Long commentId);
+
+
+    @Query("""
+    SELECT r.type, COUNT(r)
+    FROM ReactionEntity r
+    WHERE r.comment.id = :commentId
+    GROUP BY r.type
+""")
+    List<Object[]> countGroupByComment(@Param("commentId") Long commentId);
 }
