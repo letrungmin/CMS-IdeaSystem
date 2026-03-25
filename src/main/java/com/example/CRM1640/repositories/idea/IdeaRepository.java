@@ -1,6 +1,8 @@
 package com.example.CRM1640.repositories.idea;
 
 import com.example.CRM1640.entities.idea.IdeaEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -23,4 +25,9 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
     @Modifying
     @Query("UPDATE IdeaEntity i SET i.viewCount = i.viewCount + 1 WHERE i.id = :id")
     void increaseViewCount(@Param("id") Long id);
+
+    Page<IdeaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    Page<IdeaEntity> findByAuthorIdOrderByCreatedAtDesc(Long authorId, Pageable pageable);
+
 }

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,8 +32,26 @@ public class IdeasController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<IdeaDetailResponse> submitIdea(@PathVariable Long id){
+    public ResponseEntity<IdeaDetailResponse> getIdeaDetail(@PathVariable Long id){
         return ResponseEntity.ok(ideaService.getDetail(id));
+    }
+
+
+    @GetMapping
+    public ResponseEntity<Page<IdeaDetailResponse>> getAllIdeas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(ideaService.getAllIdeas(page, size));
+    }
+
+    // ================= MY IDEAS =================
+    @GetMapping("/me")
+    public ResponseEntity<Page<IdeaDetailResponse>> getMyIdeas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(ideaService.getMyIdeas(page, size));
     }
 
 }
