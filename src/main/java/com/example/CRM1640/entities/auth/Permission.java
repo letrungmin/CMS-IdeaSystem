@@ -1,11 +1,16 @@
 package com.example.CRM1640.entities.auth;
 
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.*;
 
 @Entity
 @Table(name = "permissions")
+@Getter
+@Setter
 public class Permission {
 
     @Id
