@@ -24,6 +24,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -349,7 +351,13 @@ public class IdeaServiceImpl implements IdeaService {
     // ================= CURRENT USER =================
     private UserEntity getCurrentUser() {
 
-        String username = "te7s6tus99er2"; // TODO: replace SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("Unauthenticated");
+        }
+
+        String username = authentication.getName(); // 👈 chính là subject trong JWT
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));

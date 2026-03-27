@@ -17,6 +17,8 @@ import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.ReactionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -258,7 +260,13 @@ public class ReactionServiceImpl implements ReactionService {
     // ================= MOCK USER =================
     private UserEntity getCurrentUser() {
 
-        String username = "tes5tuser2"; // TODO: replace with SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("Unauthenticated");
+        }
+
+        String username = authentication.getName();
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));

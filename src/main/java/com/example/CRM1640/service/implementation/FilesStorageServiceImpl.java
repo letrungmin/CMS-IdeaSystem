@@ -234,7 +234,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         String contentType = file.getContentType();
         String fileName = file.getOriginalFilename();
 
-        // ✅ check MIME (nếu có)
+        // Check Mine if existing
         boolean validMime = contentType != null &&
                 config.getAllowedTypes().contains(contentType);
 
@@ -254,7 +254,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
             case "png", "jpg", "jpeg", "webp",
                  "pdf", "doc", "docx",
                  "xls", "xlsx",
-                 "mp4", "mov", "avi", "mkv" -> true; // ✅ thêm video
+                 "mp4", "mov", "avi", "mkv" -> true;
             default -> false;
         };
     }
