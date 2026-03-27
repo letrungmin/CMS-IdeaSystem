@@ -13,6 +13,8 @@ import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.TermService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -27,7 +29,7 @@ public class TermsServiceImpl implements TermService {
     @Override
     public TermsStatusResponse getMyTermsStatus() {
 
-        UserEntity currentUser = getCurrentUserId();
+        UserEntity currentUser = getCurrentUser();
 
         // get active academic year
         AcademicYearEntity academicYear = academicYearRepository
@@ -57,19 +59,19 @@ public class TermsServiceImpl implements TermService {
     @Transactional
     public void acceptTerms(AcceptTermsRequest request) {
 
-        UserEntity currentUserId = getCurrentUserId();
+        UserEntity currentUser = getCurrentUser();
 
         TermsEntity terms = termsRepository.findById(request.termsId())
                 .orElseThrow(() -> new RuntimeException("Terms not found"));
 
         boolean alreadyAccepted = acceptanceRepository
-                .existsByUserIdAndTermsId(currentUserId.getId(), terms.getId());
+                .existsByUserIdAndTermsId(currentUser.getId(), terms.getId());
 
         if (alreadyAccepted) {
             return; // idempotent
         }
 
-        UserEntity user = userRepository.findById(currentUserId.getId())
+        UserEntity user = userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         TermsAcceptanceEntity acceptance = new TermsAcceptanceEntity();
@@ -79,18 +81,17 @@ public class TermsServiceImpl implements TermService {
         acceptanceRepository.save(acceptance);
     }
 
-    private UserEntity getCurrentUserId() {
+private UserEntity getCurrentUser() {
 
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        String username = "te7s6tus99er2"; // Test Data, this function will be implemented after the security function completed
-
-//                SecurityContextHolder.getContext()
-//                .getAuthentication()
-//                .getName();
-
-        return  userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-
+    if (authentication == null || !authentication.isAuthenticated()) {
+        throw new RuntimeException("Unauthenticated");
     }
+
+    String username = authentication.getName();
+
+    return userRepository.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+}
 }
