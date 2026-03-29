@@ -1,12 +1,15 @@
 package com.example.CRM1640.controller;
 
+import com.example.CRM1640.dto.ApiResponse;
 import com.example.CRM1640.dto.request.CreateCommentRequest;
 import com.example.CRM1640.dto.response.CommentResponse;
 import com.example.CRM1640.service.interfaces.CommentService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -16,26 +19,48 @@ public class CommentController {
 
     private final CommentService commentService;
 
-    // CREATE
+    // ================= CREATE =================
     @PostMapping
-    public CommentResponse create(@RequestBody CreateCommentRequest request) {
-        return commentService.create(request);
+    public ApiResponse<CommentResponse> create(
+            @RequestBody CreateCommentRequest request,
+            HttpServletRequest http
+    ) {
+        return ApiResponse.<CommentResponse>builder()
+                .result(commentService.create(request))
+                .message("Create comment successfully")
+                .path(http.getRequestURI())
+                .timestamp(Instant.now().toEpochMilli())
+                .build();
     }
 
-    // ROOT COMMENTS
+    // ================= ROOT COMMENTS =================
     @GetMapping("/idea/{ideaId}")
-    public Page<CommentResponse> getRootComments(
+    public ApiResponse<Page<CommentResponse>> getRootComments(
             @PathVariable Long ideaId,
             @RequestParam int page,
             @RequestParam int size,
-            @RequestParam(defaultValue = "newest") String sort
+            @RequestParam(defaultValue = "newest") String sort,
+            HttpServletRequest http
     ) {
-        return commentService.getRootComments(ideaId, page, size, sort);
+        return ApiResponse.<Page<CommentResponse>>builder()
+                .result(commentService.getRootComments(ideaId, page, size, sort))
+                .message("Get root comments successfully")
+                .path(http.getRequestURI())
+                .timestamp(Instant.now().toEpochMilli())
+                .build();
     }
 
-    // REPLIES
+    // ================= REPLIES =================
     @GetMapping("/{commentId}/replies")
-    public List<CommentResponse> getReplies(@PathVariable Long commentId) {
-        return commentService.getReplies(commentId);
+    public ApiResponse<List<CommentResponse>> getReplies(
+            @PathVariable Long commentId,
+            HttpServletRequest http
+    ) {
+        return ApiResponse.<List<CommentResponse>>builder()
+                .result(commentService.getReplies(commentId))
+                .message("Get replies successfully")
+                .path(http.getRequestURI())
+                .timestamp(Instant.now().toEpochMilli())
+                .build();
     }
 }

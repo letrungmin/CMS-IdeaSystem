@@ -9,6 +9,8 @@ import com.example.CRM1640.entities.auth.RefreshTokenEntity;
 import com.example.CRM1640.entities.auth.RoleEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.organization.DepartmentEntity;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.mappers.UserMapper;
 import com.example.CRM1640.repositories.authen.DepartmentRepository;
 import com.example.CRM1640.repositories.authen.RefreshTokenRepository;
@@ -16,8 +18,6 @@ import com.example.CRM1640.repositories.authen.RoleRepository;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.service.interfaces.AuthenticationService;
 import com.example.CRM1640.service.interfaces.FilesStorageService;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
@@ -27,11 +27,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.crypto.SecretKey;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -47,54 +46,81 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     RefreshTokenRepository refreshTokenRepository;
     JwtService jwtService;
 
+    // ================= REGISTER =================
     @Override
     @Transactional
     public UserResponse save(UserRequest request, MultipartFile avatar) {
 
-
-
-        //  Validate & Fetch Department
         DepartmentEntity department = getDepartmentOrThrow(request.department());
 
-        //  Map request -> entity
         UserEntity user = userMapper.toEntity(request);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setDepartment(department);
 
-        //  Assign roles
         user.setRoles(getRoles(request.roles()));
 
-        //  Persist user
         UserEntity savedUser = userRepository.save(user);
 
-        // Save avatar (if exists)
-        saveAvatarIfPresent(avatar, savedUser.getUuid()+"");
-
-        // 👉 SAVE AVATAR
-        String avatarUrl = saveAvatarIfPresent(avatar, user.getUuid()+"");
-
+        String avatarUrl = saveAvatarIfPresent(avatar, savedUser.getUuid().toString());
         if (avatarUrl != null) {
-            user.setAvatarUrl(avatarUrl);
+            savedUser.setAvatarUrl(avatarUrl);
         }
 
-        UserResponse userResponse = userMapper.toResponse(savedUser);
-
-        return userResponse;
+        return userMapper.toResponse(savedUser);
     }
 
-//    public UserResponse login(LoginRequest request) {
-//
-//        UserEntity user = userRepository
-//                .findByEmailOrUsername(request.username(), request.password())
-//                .orElseThrow(() -> new RuntimeException("User not found"));
-//
-//        // Compare to hashed password
-//        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-//            throw new RuntimeException("Invalid password");
-//        }
-//
-//        return userMapper.toResponse(user);
-//    }
+    // ================= LOGIN =================
+    @Override
+    @Transactional
+    public AuthResponse login(LoginRequest request) {
+
+        UserEntity user = userRepository.findByUsername(request.username())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new AppException(ErrorCode.WRONG_PASSWORD);
+        }
+
+        // Generate tokens
+        String accessToken = jwtService.generateAccessToken(user);
+        RefreshTokenEntity refreshToken = createRefreshToken(user);
+
+        return new AuthResponse(accessToken, refreshToken.getToken());
+    }
+
+    // ================= REFRESH =================
+    @Override
+    @Transactional
+    public AuthResponse refresh(String refreshToken) {
+
+        RefreshTokenEntity oldToken = getValidRefreshToken(refreshToken);
+
+        UserEntity user = oldToken.getUser();
+
+        // revoke old token (ROTATE)
+        oldToken.setRevoked(true);
+
+        // generate new access token
+        String newAccessToken = jwtService.generateAccessToken(user);
+
+        // create new refresh token
+        RefreshTokenEntity newRefreshToken = createRefreshToken(user);
+
+        return new AuthResponse(newAccessToken, newRefreshToken.getToken());
+    }
+
+    // ================= LOGOUT =================
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+
+        RefreshTokenEntity token = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> new AppException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+        token.setRevoked(true);
+    }
+
+    // ================= HELPER =================
 
     private DepartmentEntity getDepartmentOrThrow(Long departmentId) {
         return departmentRepository.findById(departmentId)
@@ -108,64 +134,37 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     private String saveAvatarIfPresent(MultipartFile avatar, String userUuid) {
         if (avatar != null && !avatar.isEmpty()) {
-          return  filesStorageService.saveAvatar(avatar, userUuid);
+            return filesStorageService.saveAvatar(avatar, userUuid);
         }
         return null;
     }
 
+    // ================= REFRESH TOKEN =================
 
-    public AuthResponse login(LoginRequest request) {
+    private RefreshTokenEntity createRefreshToken(UserEntity user) {
 
-        UserEntity user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        RefreshTokenEntity token = new RefreshTokenEntity();
+        token.setUser(user);
+        token.setToken(UUID.randomUUID().toString()); // UUID (secure enough)
+        token.setExpiryDate(LocalDateTime.now().plusDays(7));
+        token.setRevoked(false);
 
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid password");
-        }
-
-
-        SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-        System.out.println("Helloooooooo "+Base64.getEncoder().encodeToString(key.getEncoded()));
-
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
-
-        saveRefreshToken(user, refreshToken);
-
-        return new AuthResponse(accessToken, refreshToken);
+        return refreshTokenRepository.save(token);
     }
 
-    public AuthResponse refresh(String refreshToken) {
+    private RefreshTokenEntity getValidRefreshToken(String refreshToken) {
 
         RefreshTokenEntity token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN));
 
-        if (token.isRevoked() || token.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Refresh token expired");
+        if (token.isRevoked()) {
+            throw new AppException(ErrorCode.REFRESH_REVOKED);
         }
 
-        UserEntity user = token.getUser();
+        if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+        }
 
-        String newAccess = jwtService.generateAccessToken(user);
-
-        return new AuthResponse(newAccess, refreshToken);
-    }
-
-    public void logout(String refreshToken) {
-
-        RefreshTokenEntity token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow();
-
-        token.setRevoked(true);
-    }
-
-    private void saveRefreshToken(UserEntity user, String token) {
-
-        RefreshTokenEntity entity = new RefreshTokenEntity();
-        entity.setToken(token);
-        entity.setUser(user);
-        entity.setExpiryDate(LocalDateTime.now().plusDays(7));
-
-        refreshTokenRepository.save(entity);
+        return token;
     }
 }

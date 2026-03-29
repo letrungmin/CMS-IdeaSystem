@@ -3,6 +3,8 @@ package com.example.CRM1640.service.implementation;
 import com.example.CRM1640.dto.request.AcademicYearRequest;
 import com.example.CRM1640.dto.response.AcademicYearResponse;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.mappers.AcademicYearMapper;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.AcademicYearService;
@@ -24,7 +26,7 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     public AcademicYearResponse create(AcademicYearRequest request) {
 
         if (repository.existsByName(request.name())) {
-            throw new RuntimeException("Academic year name already exists");
+            throw new AppException(ErrorCode.ACADEMY_YEAR_NAME_EXIST);
         }
 
         validateDates(request);
@@ -41,7 +43,7 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     public AcademicYearResponse update(Long id, AcademicYearRequest request) {
 
         AcademicYearEntity entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
         validateDates(request);
 
@@ -57,7 +59,7 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     public void delete(Long id) {
 
         AcademicYearEntity entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
         repository.delete(entity);
     }
@@ -67,7 +69,7 @@ public class AcademicYearServiceImpl implements AcademicYearService {
 
         return repository.findById(id)
                 .map(mapper::toResponse)
-                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
     }
 
     @Override
@@ -91,7 +93,7 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     public AcademicYearResponse changeActiveStatus(Long id, boolean active) {
 
         AcademicYearEntity entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
         entity.setActive(active);
 
@@ -103,11 +105,11 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     private void validateDates(AcademicYearRequest request) {
 
         if (request.ideaClosureDate().isAfter(request.finalClosureDate())) {
-            throw new RuntimeException("Idea closure date must be before final closure date");
+            throw new AppException(ErrorCode.ACADEMY_YEAR_MUST_BEFORE_FINAL_CLOSURE);
         }
 
         if (request.ideaClosureDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Idea closure date must be in the future");
+            throw new AppException(ErrorCode.ACADEMY_YEAR_MUST_BE_FUTURE);
         }
     }
 }

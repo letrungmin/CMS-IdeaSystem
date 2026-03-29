@@ -1,16 +1,17 @@
 package com.example.CRM1640.controller;
 
+import com.example.CRM1640.dto.ApiResponse;
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
 import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
 import com.example.CRM1640.service.interfaces.IdeaService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,37 +22,69 @@ import java.util.List;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class IdeasController {
-    private final IdeaService ideaService;
 
-    @PostMapping(value = "/create",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<IdeaResponse> submitIdea(
-            @RequestPart("data")  @Valid CreateIdeaRequest request,
-            @RequestPart(value = "image", required = false) List<MultipartFile> files
+    IdeaService ideaService;
+
+    // ================= CREATE =================
+    @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<IdeaResponse> submitIdea(
+            @RequestPart("data") @Valid CreateIdeaRequest request,
+            @RequestPart(value = "image", required = false) List<MultipartFile> files,
+            HttpServletRequest http
     ) {
-        return ResponseEntity.ok(ideaService.submitIdea(request,files));
+
+        return ApiResponse.<IdeaResponse>builder()
+                .result(ideaService.submitIdea(request, files))
+                .message("Submit idea successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 
+    // ================= DETAIL =================
     @GetMapping("/{id}")
-    public ResponseEntity<IdeaDetailResponse> getIdeaDetail(@PathVariable Long id){
-        return ResponseEntity.ok(ideaService.getDetail(id));
+    public ApiResponse<IdeaDetailResponse> getIdeaDetail(
+            @PathVariable Long id,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<IdeaDetailResponse>builder()
+                .result(ideaService.getDetail(id))
+                .message("Get idea detail successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 
-
+    // ================= GET ALL =================
     @GetMapping
-    public ResponseEntity<Page<IdeaDetailResponse>> getAllIdeas(
+    public ApiResponse<Page<IdeaDetailResponse>> getAllIdeas(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
     ) {
-        return ResponseEntity.ok(ideaService.getAllIdeas(page, size));
+
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllIdeas(page, size))
+                .message("Get all ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 
     // ================= MY IDEAS =================
     @GetMapping("/me")
-    public ResponseEntity<Page<IdeaDetailResponse>> getMyIdeas(
+    public ApiResponse<Page<IdeaDetailResponse>> getMyIdeas(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
     ) {
-        return ResponseEntity.ok(ideaService.getMyIdeas(page, size));
-    }
 
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getMyIdeas(page, size))
+                .message("Get my ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
 }
