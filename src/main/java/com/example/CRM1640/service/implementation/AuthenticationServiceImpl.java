@@ -9,6 +9,8 @@ import com.example.CRM1640.entities.auth.RefreshTokenEntity;
 import com.example.CRM1640.entities.auth.RoleEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.organization.DepartmentEntity;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.mappers.UserMapper;
 import com.example.CRM1640.repositories.authen.DepartmentRepository;
 import com.example.CRM1640.repositories.authen.RefreshTokenRepository;
@@ -73,13 +75,13 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public AuthResponse login(LoginRequest request) {
 
         UserEntity user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid password");
+            throw new AppException(ErrorCode.WRONG_PASSWORD);
         }
 
-        // ✅ Generate tokens
+        // Generate tokens
         String accessToken = jwtService.generateAccessToken(user);
         RefreshTokenEntity refreshToken = createRefreshToken(user);
 
@@ -95,13 +97,13 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         UserEntity user = oldToken.getUser();
 
-        // ✅ revoke old token (ROTATE)
+        // revoke old token (ROTATE)
         oldToken.setRevoked(true);
 
-        // ✅ generate new access token
+        // generate new access token
         String newAccessToken = jwtService.generateAccessToken(user);
 
-        // ✅ create new refresh token
+        // create new refresh token
         RefreshTokenEntity newRefreshToken = createRefreshToken(user);
 
         return new AuthResponse(newAccessToken, newRefreshToken.getToken());
@@ -113,7 +115,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public void logout(String refreshToken) {
 
         RefreshTokenEntity token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
 
         token.setRevoked(true);
     }
@@ -143,7 +145,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         RefreshTokenEntity token = new RefreshTokenEntity();
         token.setUser(user);
-        token.setToken(UUID.randomUUID().toString()); // ✅ UUID (secure enough)
+        token.setToken(UUID.randomUUID().toString()); // UUID (secure enough)
         token.setExpiryDate(LocalDateTime.now().plusDays(7));
         token.setRevoked(false);
 
@@ -153,14 +155,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private RefreshTokenEntity getValidRefreshToken(String refreshToken) {
 
         RefreshTokenEntity token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN));
 
         if (token.isRevoked()) {
-            throw new RuntimeException("Refresh token has been revoked");
+            throw new AppException(ErrorCode.REFRESH_REVOKED);
         }
 
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Refresh token expired");
+            throw new AppException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
         return token;

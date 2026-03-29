@@ -11,6 +11,8 @@ import com.example.CRM1640.entities.idea.*;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.enums.FileType;
 import com.example.CRM1640.enums.ReactionType;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.repositories.authen.TermsRepository;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.authen.UserTermsAcceptanceRepository;
@@ -60,11 +62,11 @@ public class IdeaServiceImpl implements IdeaService {
         // ================= Academic Year =================
         AcademicYearEntity academicYear = academicYearRepository
                 .findFirstByActiveTrue()
-                .orElseThrow(() -> new RuntimeException("No active academic year"));
+                .orElseThrow(() -> new AppException(ErrorCode.NON_ACTIVATE_ACADEMY_YEAR));
 
         // ================= Check closure =================
         if (LocalDateTime.now().isAfter(academicYear.getIdeaClosureDate())) {
-            throw new RuntimeException("Idea submission has been closed");
+            throw new AppException(ErrorCode.IDEA_SUBMIT_EXPIRED);
         }
 
         // ================= Get Terms =================
@@ -73,14 +75,14 @@ public class IdeaServiceImpl implements IdeaService {
                         user.getDepartment().getId(),
                         academicYear.getId()
                 )
-                .orElseThrow(() -> new RuntimeException("Terms not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.TERM_NOT_FOUND));
 
         // ================= Check accepted =================
         boolean accepted = acceptanceRepository
                 .existsByUserIdAndTermsId(user.getId(), terms.getId());
 
         if (!accepted) {
-            throw new RuntimeException("You must accept terms before submitting idea");
+            throw new AppException(ErrorCode.MUST_ACCEPT_TERM);
         }
 
         // ================= Create Idea =================
@@ -108,7 +110,7 @@ public class IdeaServiceImpl implements IdeaService {
         for (Long categoryId : request.getCategoryIds()) {
 
             CategoryEntity category = categoryRepository.findById(categoryId)
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
+                    .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
 
             IdeaCategoryEntity ic = new IdeaCategoryEntity();
             ic.setIdea(idea);
@@ -135,7 +137,7 @@ public class IdeaServiceImpl implements IdeaService {
 
         // Load the latest Idea again
         IdeaEntity idea = ideaRepository.findById(ideaId)
-                .orElseThrow(() -> new RuntimeException("Idea not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.IDEA_NOT_FOUND));
 
         // ================= AUTHOR =================
         String authorName = idea.isAnonymous()
@@ -354,12 +356,12 @@ public class IdeaServiceImpl implements IdeaService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Unauthenticated");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        String username = authentication.getName(); // 👈 chính là subject trong JWT
+        String username = authentication.getName();
 
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

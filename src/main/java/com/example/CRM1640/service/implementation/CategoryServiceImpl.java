@@ -3,6 +3,8 @@ package com.example.CRM1640.service.implementation;
 import com.example.CRM1640.dto.request.CategoryRequest;
 import com.example.CRM1640.dto.response.CategoryResponse;
 import com.example.CRM1640.entities.idea.CategoryEntity;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.repositories.idea.CategoryRepository;
 import com.example.CRM1640.service.interfaces.CategoryService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +23,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse create(CategoryRequest request) {
 
         if (categoryRepository.existsByName(request.name())) {
-            throw new RuntimeException("Category already exists");
+            throw new AppException(ErrorCode.CATEGORY_ALREADY_EXISTS);
         }
 
         CategoryEntity entity = new CategoryEntity();
@@ -36,11 +38,11 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse update(Long id, CategoryRequest request) {
 
         CategoryEntity entity = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
 
         if (!entity.getName().equals(request.name())
                 && categoryRepository.existsByName(request.name())) {
-            throw new RuntimeException("Category name already exists");
+            throw new AppException(ErrorCode.CATEGORY_NAME_DUPLICATE);
         }
 
         entity.setName(request.name());
@@ -57,7 +59,7 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(Long id) {
 
         CategoryEntity entity = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
 
         // 👉 Soft delete
         entity.setActive(false);
@@ -71,7 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         return categoryRepository.findById(id)
                 .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
     }
 
     @Override

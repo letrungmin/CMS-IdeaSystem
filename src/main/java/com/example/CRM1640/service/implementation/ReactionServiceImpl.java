@@ -9,6 +9,8 @@ import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.entities.idea.ReactionEntity;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.enums.ReactionType;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
@@ -107,14 +109,14 @@ public class ReactionServiceImpl implements ReactionService {
 
         AcademicYearEntity academicYear = academicYearRepository
                 .findFirstByActiveTrue()
-                .orElseThrow(() -> new RuntimeException("No active academic year"));
+                .orElseThrow(() -> new AppException(ErrorCode.NON_ACTIVATE_ACADEMY_YEAR));
 
         if (LocalDateTime.now().isAfter(academicYear.getFinalClosureDate())) {
-            throw new RuntimeException("Reaction Comment period has ended");
+            throw new AppException(ErrorCode.REACTION_COMMENT_EXPIRED);
         }
 
         CommentEntity comment = commentRepository.findById(request.commentId())
-                .orElseThrow(() -> new RuntimeException("Comment not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.COMMENT_NOT_FOUND));
 
         ReactionEntity existing = reactionRepository
                 .findByCommentIdAndUserId(comment.getId(), user.getId())
@@ -263,12 +265,12 @@ public class ReactionServiceImpl implements ReactionService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Unauthenticated");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         String username = authentication.getName();
 
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

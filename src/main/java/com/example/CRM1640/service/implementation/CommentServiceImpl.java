@@ -8,6 +8,8 @@ import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.entities.idea.ReactionEntity;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.enums.ReactionType;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
@@ -47,26 +49,26 @@ public class CommentServiceImpl implements CommentService {
         UserEntity user = getCurrentUser();
 
         IdeaEntity idea = ideaRepository.findById(request.ideaId())
-                .orElseThrow(() -> new RuntimeException("Idea not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.IDEA_NOT_FOUND));
 
         // ================= CHECK FINAL CLOSURE =================
 
         AcademicYearEntity academicYear = academicYearRepository
                 .findFirstByActiveTrue()
-                .orElseThrow(() -> new RuntimeException("No active academic year"));
+                .orElseThrow(() -> new AppException(ErrorCode.NON_ACTIVATE_ACADEMY_YEAR));
 
         if (LocalDateTime.now().isAfter(academicYear.getFinalClosureDate())) {
-            throw new RuntimeException("Comment period has ended");
+            throw new AppException(ErrorCode.COMMENT_EXPIRED);
         }
 
         CommentEntity parent = null;
 
         if (request.parentId() != null) {
             parent = commentRepository.findById(request.parentId())
-                    .orElseThrow(() -> new RuntimeException("Parent comment not found"));
+                    .orElseThrow(() -> new AppException(ErrorCode.PARENT_COMMENT_NOT_FOUND));
 
             if (!parent.getIdea().getId().equals(idea.getId())) {
-                throw new RuntimeException("Invalid parent comment");
+                throw new AppException(ErrorCode.INVALID_COMMENT_PARENT);
             }
         }
 
@@ -176,12 +178,12 @@ public class CommentServiceImpl implements CommentService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Unauthenticated");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         String username = authentication.getName();
 
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

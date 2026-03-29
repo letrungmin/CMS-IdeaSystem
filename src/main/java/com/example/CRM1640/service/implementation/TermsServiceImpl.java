@@ -6,6 +6,8 @@ import com.example.CRM1640.entities.auth.TermsAcceptanceEntity;
 import com.example.CRM1640.entities.auth.TermsEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.repositories.authen.TermsRepository;
 import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.authen.UserTermsAcceptanceRepository;
@@ -34,15 +36,15 @@ public class TermsServiceImpl implements TermService {
         // get active academic year
         AcademicYearEntity academicYear = academicYearRepository
                 .findFirstByActiveTrue()
-                .orElseThrow(() -> new RuntimeException("No active academic year"));
+                .orElseThrow(() -> new AppException(ErrorCode.NON_ACTIVATE_ACADEMY_YEAR));
 
-        // get terms theo department + academic year
+        // get terms by department + academic year
         TermsEntity terms = termsRepository
                 .findByDepartmentIdAndAcademicYearIdAndActiveTrue(
                         currentUser.getDepartment().getId(),
                         academicYear.getId()
                 )
-                .orElseThrow(() -> new RuntimeException("No terms found"));
+                .orElseThrow(() -> new AppException(ErrorCode.NO_TERM_FOUND));
 
         // check accepted
         boolean accepted = acceptanceRepository
@@ -62,7 +64,7 @@ public class TermsServiceImpl implements TermService {
         UserEntity currentUser = getCurrentUser();
 
         TermsEntity terms = termsRepository.findById(request.termsId())
-                .orElseThrow(() -> new RuntimeException("Terms not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.NO_TERM_FOUND));
 
         boolean alreadyAccepted = acceptanceRepository
                 .existsByUserIdAndTermsId(currentUser.getId(), terms.getId());
@@ -72,7 +74,7 @@ public class TermsServiceImpl implements TermService {
         }
 
         UserEntity user = userRepository.findById(currentUser.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         TermsAcceptanceEntity acceptance = new TermsAcceptanceEntity();
         acceptance.setUser(user);
@@ -86,12 +88,12 @@ private UserEntity getCurrentUser() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
     if (authentication == null || !authentication.isAuthenticated()) {
-        throw new RuntimeException("Unauthenticated");
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
     String username = authentication.getName();
 
     return userRepository.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 }
 }

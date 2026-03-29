@@ -4,9 +4,12 @@ import com.example.CRM1640.config.FileConfigProperty;
 import com.example.CRM1640.entities.idea.IdeaDocumentEntity;
 import com.example.CRM1640.entities.idea.IdeaEntity;
 import com.example.CRM1640.enums.FileType;
+import com.example.CRM1640.exception.AppException;
+import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.service.interfaces.FilesStorageService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -18,10 +21,12 @@ import java.nio.file.*;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FilesStorageServiceImpl implements FilesStorageService {
 
     private final FileConfigProperty config;
@@ -34,7 +39,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
     @PostConstruct
     public void init() {
         if (config.getRootPath() == null) {
-            throw new RuntimeException("File root path not configured!");
+            throw new AppException(ErrorCode.FILE_ROOT_PATH_NOT_CONFIG);
         }
 
         this.root = Paths.get(config.getRootPath())
@@ -44,7 +49,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
-            throw new RuntimeException("Cannot init storage", e);
+            throw new AppException(ErrorCode.STORAGE_INIT_FAILED);
         }
     }
 
@@ -68,7 +73,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
             return "/files/avatar/" + fileName;
 
         } catch (IOException e) {
-            throw new RuntimeException("Save avatar failed", e);
+            throw new AppException(ErrorCode.FILE_SAVE_FAILED);
         }
     }
 
@@ -97,7 +102,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
             totalSize += file.getSize();
             if (totalSize > parseSize(config.getMaxTotalSize())) {
-                throw new IllegalArgumentException("Total upload exceeded limit");
+                throw new AppException(ErrorCode.TOTAL_SIZE_EXCEEDED);
             }
 
             FileType type = detectFileType(file.getOriginalFilename());
@@ -111,7 +116,8 @@ public class FilesStorageServiceImpl implements FilesStorageService {
             try {
                 Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                throw new RuntimeException("Save file failed: " + fileName, e);
+                log.error("Save file failed: fileName={}, error={}", fileName, e.getMessage(), e);
+                throw new AppException(ErrorCode.FILE_SAVE_FAILED);
             }
 
             IdeaDocumentEntity doc = new IdeaDocumentEntity();
@@ -134,19 +140,19 @@ public class FilesStorageServiceImpl implements FilesStorageService {
             Path file = root.resolve(path).normalize();
 
             if (!file.startsWith(root)) {
-                throw new RuntimeException("Invalid path");
+                throw new AppException(ErrorCode.FILE_INVALID_PATH);
             }
 
             Resource resource = new UrlResource(file.toUri());
 
             if (!resource.exists() || !resource.isReadable()) {
-                throw new RuntimeException("File not found");
+                throw new AppException(ErrorCode.FILE_NOT_FOUND);
             }
 
             return resource;
 
         } catch (MalformedURLException e) {
-            throw new RuntimeException("Load file error", e);
+            throw new AppException(ErrorCode.FILE_LOAD_FAILED);
         }
     }
 
@@ -158,7 +164,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
                     .filter(path -> !path.equals(root))
                     .forEach(path -> path.toFile().delete());
         } catch (IOException e) {
-            throw new RuntimeException("Delete failed", e);
+            throw new AppException(ErrorCode.FILE_DELETE_FAILED);
         }
     }
 
@@ -169,7 +175,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
                     .filter(p -> !p.equals(root))
                     .map(root::relativize);
         } catch (IOException e) {
-            throw new RuntimeException("Load all failed", e);
+            throw new AppException(ErrorCode.FILE_LOAD_FAILED);
         }
     }
 
@@ -192,7 +198,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
             return "/files/avatar/" + fileName;
 
         } catch (IOException e) {
-            throw new RuntimeException("Save avatar failed", e);
+            throw new AppException(ErrorCode.FILE_SAVE_FAILED);
         }
     }
 
@@ -213,7 +219,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         try {
             Files.createDirectories(folder);
         } catch (IOException e) {
-            throw new RuntimeException("Cannot create folder", e);
+            throw new AppException(ErrorCode.FOLDER_CREATE_FAILED);
         }
 
         return folder;
@@ -223,12 +229,12 @@ public class FilesStorageServiceImpl implements FilesStorageService {
     private void validateFile(MultipartFile file) {
 
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File empty");
+            throw new AppException(ErrorCode.FILE_EMPTY);
         }
 
         long maxSize = parseSize(config.getMaxSize());
         if (file.getSize() > maxSize) {
-            throw new IllegalArgumentException("File too large");
+            throw new  AppException(ErrorCode.FILE_TOO_LARGE);
         }
 
         String contentType = file.getContentType();
@@ -242,7 +248,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
         boolean validExt = fileName != null && isAllowedExtension(fileName);
 
         if (!validMime && !validExt) {
-            throw new IllegalArgumentException("Invalid file type: " + contentType);
+            throw new AppException(ErrorCode.FILE_INVALID_TYPE);
         }
     }
 
@@ -261,7 +267,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
     private void validatePath(Path path, Path folder) {
         if (!path.normalize().startsWith(folder)) {
-            throw new RuntimeException("Path traversal attack");
+            throw new AppException(ErrorCode.PATH_TRAVERSAL_ATTACK);
         }
     }
 
@@ -278,7 +284,7 @@ public class FilesStorageServiceImpl implements FilesStorageService {
 
     private String sanitize(String fileName) {
 
-        if (fileName == null) throw new IllegalArgumentException("Invalid name");
+        if (fileName == null) throw new AppException(ErrorCode.INVALID_FILE_NAME);
 
         String normalized = Normalizer.normalize(fileName, Normalizer.Form.NFKC);
 
