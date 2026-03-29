@@ -1,5 +1,6 @@
 package com.example.CRM1640.dto.request;
 
+import com.example.CRM1640.enums.Location;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
 import java.time.LocalDate;
@@ -7,6 +8,7 @@ import java.util.Set;
 
 @Builder
 public record UserRequest (
+
         @Email
         @NotBlank
         String email,
@@ -38,6 +40,10 @@ public record UserRequest (
 
         @NotBlank
         String address,
+
+        // 👉 NEW
+        @NotNull
+        Location location,
 
         Set<Long> roles,
 

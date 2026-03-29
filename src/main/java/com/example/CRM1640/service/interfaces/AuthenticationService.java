@@ -14,4 +14,6 @@ public interface AuthenticationService {
     AuthResponse refresh(String refreshToken);
 
     void logout(String refreshToken);
+
+    UserResponse introspect();
 }

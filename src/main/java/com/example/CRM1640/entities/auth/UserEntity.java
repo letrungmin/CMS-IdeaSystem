@@ -1,11 +1,13 @@
 package com.example.CRM1640.entities.auth;
 
 import com.example.CRM1640.entities.organization.DepartmentEntity;
+import com.example.CRM1640.enums.Location;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +36,9 @@ public class UserEntity {
     protected void prePersist() {
         if (uuid == null) {
             uuid = UUID.randomUUID();
+        }
+        if (joinDate == null) {
+            joinDate = LocalDateTime.now();
         }
     }
 
@@ -66,6 +71,13 @@ public class UserEntity {
 
     @Column(name = "avatar_url")
     private String avatarUrl = "/files/default/avatar.png";
+
+    @Column(name = "join_date", nullable = false, updatable = false)
+    private LocalDateTime joinDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "location", nullable = false)
+    private Location location;
 
     // ===== RBAC =====
     @ManyToMany(fetch = FetchType.LAZY)
