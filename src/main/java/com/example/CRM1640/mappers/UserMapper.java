@@ -21,19 +21,21 @@ import java.util.stream.Collectors;
 public class UserMapper {
     DepartmentMapper departmentMapper;
     public UserEntity toEntity(UserRequest request) {
-        if (request == null) return null;
 
-        UserEntity entity = new UserEntity();
-        entity.setEmail(request.email());
-        entity.setUsername(request.username());
-        entity.setFirstName(request.firstName());
-        entity.setMiddleName(request.middleName());
-        entity.setLastName(request.lastName());
-        entity.setDob(request.dob());
-        entity.setMobile(request.mobile());
-        entity.setSocialLinks(request.socialLinks());
-        entity.setAddress(request.address());
-        return entity;
+        UserEntity user = new UserEntity();
+
+        user.setEmail(request.email());
+        user.setUsername(request.username());
+        user.setFirstName(request.firstName());
+        user.setMiddleName(request.middleName());
+        user.setLastName(request.lastName());
+        user.setDob(request.dob());
+        user.setMobile(request.mobile());
+        user.setSocialLinks(request.socialLinks());
+        user.setAddress(request.address());
+        user.setLocation(request.location());
+
+        return user;
     }
 
     public UserResponse toResponse(UserEntity entity) {
@@ -50,6 +52,13 @@ public class UserMapper {
                 entity.getMobile(),
                 entity.getSocialLinks(),
                 entity.getAddress(),
+                entity.getJoinDate(),
+                entity.getLocation(),
+                entity.getLocation() != null
+                        ? entity.getLocation().getDisplayName()
+                        : null,
+                entity.getAvatarUrl(),
+
                 mapRoles(entity.getRoles()),
                 departmentMapper.toResponse(entity.getDepartment())
         );

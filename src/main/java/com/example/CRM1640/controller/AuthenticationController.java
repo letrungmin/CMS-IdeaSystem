@@ -64,4 +64,13 @@ public class AuthenticationController {
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
+
+    @GetMapping("/me")
+    public ApiResponse<?> introspect() {
+        return ApiResponse.builder()
+                .message("Get current user successfully")
+                .result(authenticationService.introspect())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
 }

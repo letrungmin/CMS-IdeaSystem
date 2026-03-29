@@ -1,8 +1,10 @@
 package com.example.CRM1640.dto.response;
 
+import com.example.CRM1640.enums.Location;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,16 +20,23 @@ public record UserResponse(
         String mobile,
         String socialLinks,
         String address,
+        LocalDateTime joinDate,
+        Location location,
+        String locationName,
+        String avatar,
         List<RoleResponse> roles,
         DepartmentResponse department
 ) {
 
-    // Constructor rút gọn
     public UserResponse(UUID uuid, String username, String email) {
         this(
                 uuid,
                 email,
                 username,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
