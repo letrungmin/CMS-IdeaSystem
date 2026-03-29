@@ -1,17 +1,15 @@
 package com.example.CRM1640.controller;
 
+import com.example.CRM1640.dto.ApiResponse;
 import com.example.CRM1640.dto.request.ReactCommentRequest;
 import com.example.CRM1640.dto.request.ReactionRequest;
 import com.example.CRM1640.dto.response.ReactionResponse;
 import com.example.CRM1640.service.interfaces.ReactionService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/reactions")
@@ -21,13 +19,33 @@ public class ReactionController {
 
     ReactionService reactionService;
 
+    // ================= REACT IDEA =================
     @PostMapping("/idea")
-    public ResponseEntity<ReactionResponse> react(@RequestBody ReactionRequest request) {
-        return ResponseEntity.ok(reactionService.react(request));
+    public ApiResponse<ReactionResponse> react(
+            @RequestBody ReactionRequest request,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<ReactionResponse>builder()
+                .result(reactionService.react(request))
+                .message("React idea successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 
+    // ================= REACT COMMENT =================
     @PostMapping("/comment")
-    public ReactionResponse reactComment(@RequestBody ReactCommentRequest request) {
-        return reactionService.reactComment(request);
+    public ApiResponse<ReactionResponse> reactComment(
+            @RequestBody ReactCommentRequest request,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<ReactionResponse>builder()
+                .result(reactionService.reactComment(request))
+                .message("React comment successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
     }
 }
