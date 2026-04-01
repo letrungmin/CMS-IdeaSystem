@@ -30,5 +30,7 @@ public record IdeaDetailResponse(
         Long commentCount,
 
         List<String> images,
-        List<FileResponse> attachments
+        List<FileResponse> attachments,
+
+        String status
 ) {}

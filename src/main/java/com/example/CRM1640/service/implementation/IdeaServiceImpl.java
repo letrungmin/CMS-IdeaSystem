@@ -236,12 +236,62 @@ public class IdeaServiceImpl implements IdeaService {
                 idea.getCommentCount(),
 
                 images,
-                attachments
+                attachments,
+                idea.getStatus().name()
         );
     }
 
     @Override
     public Page<IdeaDetailResponse> getAllIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdAt").descending()
+        );
+
+        return ideaRepository
+                .findByStatus(IdeaStatus.APPROVED, pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getAllPending(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdAt").descending()
+        );
+
+        return ideaRepository
+                .findByStatus(IdeaStatus.PENDING, pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+
+    @Override
+    public Page<IdeaDetailResponse> getAllIReject(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdAt").descending()
+        );
+
+        return ideaRepository
+                .findByStatus(IdeaStatus.REJECTED, pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getAllStatusIdeas(int page, int size) {
 
         UserEntity user = getCurrentUser();
 
@@ -410,7 +460,8 @@ public class IdeaServiceImpl implements IdeaService {
                 idea.getCommentCount(),
 
                 images,
-                attachments
+                attachments,
+                idea.getStatus().name()
         );
     }
 
