@@ -6,6 +6,7 @@ import com.example.CRM1640.dto.response.CategoryResponse;
 import com.example.CRM1640.service.interfaces.CategoryService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,6 +19,7 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     // ================= CREATE =================
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PostMapping
     public ApiResponse<CategoryResponse> create(
             @RequestBody CategoryRequest request,
@@ -32,6 +34,7 @@ public class CategoryController {
     }
 
     // ================= UPDATE =================
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<CategoryResponse> update(
             @PathVariable Long id,
@@ -47,6 +50,7 @@ public class CategoryController {
     }
 
     // ================= DELETE =================
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(
             @PathVariable Long id,

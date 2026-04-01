@@ -3,6 +3,7 @@ package com.example.CRM1640.entities.idea;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import com.example.CRM1640.entities.organization.DepartmentEntity;
+import com.example.CRM1640.enums.IdeaStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -57,7 +58,7 @@ public class IdeaEntity {
     private Long dislikeCount = 0L;
 
     // ================= AUTHOR =================
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "author_id")
     private UserEntity author;
 
@@ -85,4 +86,19 @@ public class IdeaEntity {
 
     @Column(nullable = false)
     private Long commentCount = 0L;
+
+
+    // ================= Tracking idea flow =================
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private IdeaStatus status = IdeaStatus.PENDING;
+
+    @Column(columnDefinition = "TEXT")
+    private String feedback;
+
+    private LocalDateTime approvedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private UserEntity approvedBy;
 }

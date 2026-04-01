@@ -16,4 +16,8 @@ public interface IdeaService {
     Page<IdeaDetailResponse> getAllIdeas(int page, int size);
 
     Page<IdeaDetailResponse> getMyIdeas(int page, int size);
+
+    void approve(Long ideaId);
+
+    void reject(Long ideaId, String feedback);
 }

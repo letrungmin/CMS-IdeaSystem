@@ -9,7 +9,10 @@ import com.example.CRM1640.entities.auth.TermsEntity;
 import com.example.CRM1640.entities.auth.UserEntity;
 import com.example.CRM1640.entities.idea.*;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.entities.other.IdeaEvent;
 import com.example.CRM1640.enums.FileType;
+import com.example.CRM1640.enums.IdeaEventType;
+import com.example.CRM1640.enums.IdeaStatus;
 import com.example.CRM1640.enums.ReactionType;
 import com.example.CRM1640.exception.AppException;
 import com.example.CRM1640.exception.ErrorCode;
@@ -20,6 +23,7 @@ import com.example.CRM1640.repositories.idea.*;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.FilesStorageService;
 import com.example.CRM1640.service.interfaces.IdeaService;
+import com.example.CRM1640.service.interfaces.RabbitMQProducer;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -52,12 +56,14 @@ public class IdeaServiceImpl implements IdeaService {
     private final FilesStorageService filesStorageService;
     private final IdeaDocumentRepository ideaDocumentRepository;
     private final CommentRepository commentRepository;
+    private final RabbitMQProducer rabbitMQProducer;
 
     @Override
     @Transactional
     public IdeaResponse submitIdea(CreateIdeaRequest request,List<MultipartFile> files) {
 
         UserEntity user = getCurrentUser();
+
 
         // ================= Academic Year =================
         AcademicYearEntity academicYear = academicYearRepository
@@ -121,6 +127,19 @@ public class IdeaServiceImpl implements IdeaService {
 
             categoryNames.add(category.getName());
         }
+
+        rabbitMQProducer.send(
+                IdeaEvent.builder()
+                        .ideaId(idea.getId())
+                        .title(idea.getTitle())
+                        .content(idea.getContent())
+                        .authorEmail(user.getEmail())
+                        .authorName(user.getUsername())
+                        .qaManagerEmail(user.getDepartment().getQaCoordinator().getEmail())
+                        .type(IdeaEventType.SUBMITTED)
+                        .build()
+        );
+
 
         // ================= Build Response =================
         return buildResponse(idea, categoryNames);
@@ -242,6 +261,51 @@ public class IdeaServiceImpl implements IdeaService {
         return ideaRepository
                 .findByAuthorIdOrderByCreatedAtDesc(user.getId(), pageable)
                 .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    @Transactional
+    public void approve(Long ideaId) {
+
+        IdeaEntity idea = ideaRepository.findById(ideaId)
+                .orElseThrow(() -> new AppException(ErrorCode.IDEA_NOT_FOUND));
+
+        idea.setStatus(IdeaStatus.APPROVED);
+        idea.setApprovedAt(LocalDateTime.now());
+        idea.setApprovedBy(getCurrentUser());
+
+        rabbitMQProducer.send(
+                IdeaEvent.builder()
+                        .ideaId(idea.getId())
+                        .title(idea.getTitle())
+                        .authorEmail(idea.getAuthor().getEmail())
+                        .authorName(idea.getAuthor().getUsername())
+                        .type(IdeaEventType.APPROVED)
+                        .build()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void reject(Long ideaId, String feedback) {
+
+        IdeaEntity idea = ideaRepository.findById(ideaId)
+                .orElseThrow(() -> new AppException(ErrorCode.IDEA_NOT_FOUND));
+
+        idea.setStatus(IdeaStatus.REJECTED);
+        idea.setFeedback(feedback);
+        idea.setApprovedBy(getCurrentUser());
+
+        rabbitMQProducer.send(
+                IdeaEvent.builder()
+                        .ideaId(idea.getId())
+                        .title(idea.getTitle())
+                        .authorEmail(idea.getAuthor().getEmail())
+                        .authorName(idea.getAuthor().getUsername())
+                        .feedback(idea.getFeedback())
+                        .type(IdeaEventType.REJECTED)
+                        .build()
+        );
     }
 
     // ================= RESPONSE =================

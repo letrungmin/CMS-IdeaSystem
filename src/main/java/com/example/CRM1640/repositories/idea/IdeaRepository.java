@@ -1,6 +1,7 @@
 package com.example.CRM1640.repositories.idea;
 
 import com.example.CRM1640.entities.idea.IdeaEntity;
+import com.example.CRM1640.enums.IdeaStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,4 +31,5 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
 
     Page<IdeaEntity> findByAuthorIdOrderByCreatedAtDesc(Long authorId, Pageable pageable);
 
+    List<IdeaEntity> findByStatus(IdeaStatus status);
 }

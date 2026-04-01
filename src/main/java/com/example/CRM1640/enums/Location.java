@@ -6,7 +6,7 @@ public enum Location {
     GREENWICH_HANOI("Greenwich Hanoi"),
     GREENWICH_DANANG("Greenwich Danang"),
     GREENWICH_CANTHO("Greenwich Can Tho"),
-    GREENWICH_LONDON("Greenwich Can Tho")
+    GREENWICH_LONDON("Greenwich Lon Don")
     ;
 
     private final String displayName;
