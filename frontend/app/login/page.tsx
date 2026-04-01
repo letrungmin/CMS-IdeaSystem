@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-// import axiosClient from '@/utils/axiosClient'; // We will use this later
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  // 🔥 FIX 1: Change email to username to match Backend DTO
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,25 +17,49 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // TODO: Replace with actual Spring Boot API call later
-      // const response = await axiosClient.post('/auth/login', { email, password });
-      // localStorage.setItem('token', response.token);
-      
-      // Simulating a network request for UI testing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // THÊM DÒNG NÀY ĐỂ CẤP THẺ BÀI (COOKIE) CHO NGƯỜI DÙNG:
-      document.cookie = "token=mock_jwt_token_123; path=/; max-age=86400";
-      
-      console.log("Login credentials:", { email, password });
-      
-      // Temporary success action
-      alert("Login UI is working! Awaiting Spring Boot API integration.");
-      router.push('/dashboard'); 
-      // router.push('/ideas'); 
+      // 🔥 FIX 2: Connect to the actual Spring Boot Auth API
+      const response = await fetch('http://localhost:9999/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username, // Matching Postman "username" field
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      // Check if API response indicates success (e.g., code 1000 like in your screenshot)
+      if (response.ok && data.code === 1000) {
+        
+        // 🔥 FIX 3: Extract the tokens from data.result
+        const accessToken = data.result.accessToken;
+        const refreshToken = data.result.refreshToken;
+
+        // Save tokens to Local Storage for IdeaCard and other pages to use
+        localStorage.setItem('accessToken', accessToken);
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
+
+        // Optional: Save user info if backend returns it, or decode from JWT later
+        // localStorage.setItem('username', username);
+
+        console.log("✅ Login Successful! Tokens saved.");
+        
+        // Redirect to Home Feed
+        router.push('/home'); 
+
+      } else {
+        // Handle explicit backend errors (e.g., Wrong password)
+        setError(data.message || 'Invalid username or password. Please try again.');
+      }
 
     } catch (err) {
-      setError('Invalid email or password. Please try again.');
+      console.error("Login fetch error:", err);
+      setError('Unable to connect to the server. Please ensure backend is running.');
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +79,7 @@ export default function LoginPage() {
 
         {/* Error Message Display */}
         {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-100 rounded-md">
+          <div className="p-3 text-sm text-red-600 bg-red-100 rounded-md border border-red-200">
             {error}
           </div>
         )}
@@ -63,19 +87,19 @@ export default function LoginPage() {
         {/* Login Form */}
         <form className="space-y-4" onSubmit={handleLogin}>
           
-          {/* Email Field */}
+          {/* Username Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="email">
-              Email Address
+            <label className="block text-sm font-medium text-gray-700" htmlFor="username">
+              Username
             </label>
             <input
-              id="email"
-              type="email"
+              id="username"
+              type="text"
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="admin@university.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 mt-1 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter your username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
@@ -88,7 +112,7 @@ export default function LoginPage() {
               id="password"
               type="password"
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 mt-1 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -99,9 +123,16 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:bg-blue-400"
+            className="w-full px-4 py-2 mt-2 text-white font-bold bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:bg-blue-400 flex justify-center items-center"
           >
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Signing in...
+              </span>
+            ) : (
+              'Sign in'
+            )}
           </button>
 
         </form>

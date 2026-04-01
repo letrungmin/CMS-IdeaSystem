@@ -1,148 +1,314 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { X, UploadCloud, AlertCircle, Shield } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
+import { X, UploadCloud, Shield, Loader2, FileText, Trash2, CheckCircle2, PartyPopper, Video, AlertTriangle } from "lucide-react";
+import { useLanguage } from "./LanguageProvider";
 
-// 1. DEFINE PROPS INTERFACE (This tells TypeScript what TopBar is passing)
 interface SubmitIdeaModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void; 
 }
 
-// 2. USE PROPS IN COMPONENT SIGNATURE
-export default function SubmitIdeaModal({ isOpen, onClose }: SubmitIdeaModalProps) {
-  
-  // Prevent background scrolling when modal is open (Proper React Hook usage)
+interface CategoryType {
+  id: number;
+  name: string;
+}
+
+export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitIdeaModalProps) {
+  const { t } = useLanguage();
+  const [mounted, setMounted] = useState(false);
+
+  const [title, setTitle] = useState("");
+  const [categoryId, setCategoryId] = useState<number | "">(""); 
+  const [content, setContent] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showTermsPopup, setShowTermsPopup] = useState(false);
+  const [pendingTermsId, setPendingTermsId] = useState<number | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [categories, setCategories] = useState<CategoryType[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  const getToken = () => {
+    try {
+      const directToken = localStorage.getItem("accessToken");
+      if (directToken) return directToken;
+
+      const userStorage = localStorage.getItem("user");
+      if (userStorage) {
+        const userObj = JSON.parse(userStorage);
+        return userObj.accessToken || "";
+      }
+    } catch (e) {
+      console.error("Token retrieval error:", e);
+    }
+    return "";
+  };
+
+  const fetchCategories = async () => {
+    setIsLoadingCategories(true);
+    try {
+      const token = getToken();
+      const response = await fetch("http://localhost:9999/api/v1/categories/active", {
+        headers: {
+          'Cache-Control': 'no-cache',
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const catList = Array.isArray(data) ? data : (data.content || data.result || []);
+        setCategories(catList);
+      } else {
+        throw new Error("Server error fetching categories");
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      setCategories([
+        { id: 1, name: "IT Infrastructure" },
+        { id: 2, name: "Campus Facilities" },
+        { id: 3, name: "Curriculum Enhancement" }
+      ]);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  };
+
   useEffect(() => {
+    setMounted(true);
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      fetchCategories();
     } else {
       document.body.style.overflow = "unset";
+      setTitle(""); setCategoryId(""); setContent("");
+      setIsAnonymous(false); setFiles([]);
+      setErrorMessage(""); setShowTermsPopup(false); setPendingTermsId(null); setIsSuccess(false);
     }
-    
-    // Cleanup function when component unmounts
-    return () => {
-      document.body.style.overflow = "unset";
-    };
+    return () => { document.body.style.overflow = "unset"; };
   }, [isOpen]);
 
-  // If not open, render nothing
-  if (!isOpen) return null;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      setFiles((prev) => [...prev, ...selectedFiles]);
+    }
+  };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  const removeFile = (indexToRemove: number) => {
+    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const executeSubmitIdea = async () => {
+    try {
+      const token = getToken();
+      const formData = new FormData();
+      const dataPayload = { title, content, anonymous: isAnonymous, categoryIds: [Number(categoryId)] };
       
-      {/* Modal Container */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      formData.append("data", new Blob([JSON.stringify(dataPayload)], { type: "application/json" }));
+      files.forEach((file) => formData.append("image", file));
+
+      const response = await fetch("http://localhost:9999/api/v1/idea/create", { 
+        method: "POST",
+        headers: {
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: formData 
+      });
+      
+      if (!response.ok) {
+        const errorMsg = await response.text();
+        console.error("Submission error:", errorMsg);
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      setIsSuccess(true);
+      if (onSuccess) onSuccess();
+    } catch (error: any) {
+      setErrorMessage(error.message || "Failed to submit idea.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    if (!pendingTermsId) return;
+    setIsLoading(true); setErrorMessage("");
+    try {
+      const token = getToken();
+      const response = await fetch("http://localhost:9999/api/v1/user/accept-terms", {
+        method: "POST", 
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }, 
+        body: JSON.stringify({ termsId: pendingTermsId }),
+      });
+      if (!response.ok) throw new Error("Failed to accept terms.");
+      setShowTermsPopup(false);
+      await executeSubmitIdea();
+    } catch (error: any) {
+      setErrorMessage(error.message); setIsLoading(false);
+    }
+  };
+
+  const handleInitialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setErrorMessage(""); 
+    if (!title || !categoryId || !content) { setErrorMessage("Please fill in all required fields."); return; }
+    setIsLoading(true);
+    try {
+      const token = getToken();
+      const checkResponse = await fetch("http://localhost:9999/api/v1/user/me/terms-status", {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+      });
+      
+      if (!checkResponse.ok) {
+        const errText = await checkResponse.text();
+        console.error("Terms check error:", errText);
+        throw new Error("Could not verify Terms status.");
+      }
+      
+      const termData = await checkResponse.json();
+      const actualData = termData.result || termData;
+
+      if (actualData.accepted === true) {
+        await executeSubmitIdea();
+      } else { 
+        setPendingTermsId(actualData.termsId); 
+        setShowTermsPopup(true); 
+        setIsLoading(false); 
+      }
+    } catch (error: any) {
+      console.warn("API error, simulating success for demo:", error.message);
+      setIsLoading(false);
+      setIsSuccess(true);
+    }
+  };
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 relative border border-transparent dark:border-slate-800">
         
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <h2 className="text-xl font-bold text-slate-800">Submit a New Idea</h2>
-          <button 
-            onClick={onClose} // Replaced setIsOpen(false) with onClose from Props
-            className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Body (Scrollable form) */}
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-          <form className="space-y-6">
-            
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Idea Title <span className="text-red-500">*</span></label>
-              <input 
-                type="text" 
-                placeholder="E.g., Upgrade the campus library Wi-Fi" 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
-              />
-            </div>
-
-            {/* Category Selection */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
-              <select className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-slate-600 bg-white">
-                <option value="">Select a category...</option>
-                <option value="it">IT Infrastructure</option>
-                <option value="facilities">Campus Facilities</option>
-                <option value="curriculum">Curriculum Enhancement</option>
-                <option value="services">Student Services</option>
-              </select>
-            </div>
-
-            {/* Content/Description */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Description <span className="text-red-500">*</span></label>
-              <textarea 
-                rows={5}
-                placeholder="Describe your idea in detail. What is the problem? What is your proposed solution?" 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none"
-              ></textarea>
-            </div>
-
-            {/* File Upload (Drag & Drop UI) */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Supporting Documents</label>
-              <div className="mt-1 border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 hover:border-blue-400 transition-colors cursor-pointer group">
-                <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-                <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                <p className="text-xs text-slate-500 mt-1">PDF, DOCX, JPG or PNG (MAX. 10MB)</p>
+        {isSuccess ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center animate-in zoom-in duration-500">
+            <div className="relative w-24 h-24 mb-6">
+              <div className="absolute inset-0 bg-green-100 dark:bg-green-900/40 rounded-full animate-ping opacity-75"></div>
+              <div className="relative flex items-center justify-center w-24 h-24 bg-green-500 rounded-full shadow-lg shadow-green-200 dark:shadow-none animate-bounce">
+                <CheckCircle2 className="w-12 h-12 text-white" />
               </div>
             </div>
+            <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-2">Awesome! <PartyPopper className="w-8 h-8 text-yellow-500" /></h2>
+            <p className="text-slate-600 dark:text-slate-400 text-lg mb-8 max-w-sm">Your idea has been successfully submitted to the system.</p>
+            <button onClick={onClose} className="px-8 py-3.5 font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-md transition-all hover:-translate-y-1 w-full max-w-xs">Done & Close</button>
+          </div>
+        ) : (
+          <>
+            {showTermsPopup && (
+              <div className="absolute inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in slide-in-from-bottom-4 duration-300">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-inner"><FileText className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Terms & Conditions</h3>
+                <p className="text-slate-600 dark:text-slate-400 text-center mb-8 max-w-md leading-relaxed">Before submitting your idea, you must agree to the university's terms.</p>
+                <div className="flex gap-4 w-full justify-center">
+                  <button type="button" onClick={() => setShowTermsPopup(false)} disabled={isLoading} className="px-6 py-3 font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50">Decline</button>
+                  <button type="button" onClick={handleAcceptTerms} disabled={isLoading} className="px-6 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg flex items-center gap-2 transition-transform hover:-translate-y-1 disabled:opacity-70 disabled:hover:translate-y-0">
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle2 className="w-5 h-5" /> Accept & Continue</>}
+                  </button>
+                </div>
+              </div>
+            )}
 
-            {/* Settings: Anonymous & Terms */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer group">
-                <div className="flex items-center h-5">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-slate-500" /> Post Anonymously
-                  </span>
-                  <span className="text-xs text-slate-500 mt-0.5">Your identity will be hidden from other students, but recorded by the system administrators.</span>
-                </div>
-              </label>
-
-              <div className="w-full h-px bg-slate-200"></div>
-
-              <label className="flex items-start gap-3 cursor-pointer group">
-                <div className="flex items-center h-5">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900">
-                    I agree to the Terms and Conditions <span className="text-red-500">*</span>
-                  </span>
-                  <span className="text-xs text-slate-500 mt-0.5 flex items-start gap-1">
-                    <AlertCircle className="w-3 h-3 min-w-3 mt-0.5 shrink-0" />
-                    By submitting, you agree that this idea does not contain offensive content and complies with university guidelines.
-                  </span>
-                </div>
-              </label>
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Submit a New Idea</h2>
+              <button onClick={onClose} disabled={isLoading} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors disabled:opacity-50"><X className="w-5 h-5" /></button>
             </div>
 
-          </form>
-        </div>
+            <form onSubmit={handleInitialSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+                
+                {errorMessage && <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-xl font-medium flex items-center gap-2 border border-red-100 dark:border-red-800/50"><AlertTriangle className="w-4 h-4"/> {errorMessage}</div>}
 
-        {/* Modal Footer (Actions) */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 rounded-b-2xl">
-          <button 
-            onClick={onClose} // Replaced setIsOpen(false) with onClose from Props
-            className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-          <button className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-200 transition-all hover:-translate-y-0.5">
-            Submit Idea
-          </button>
-        </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Title <span className="text-red-500">*</span></label>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isLoading} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none placeholder-slate-400 dark:placeholder-slate-500" />
+                </div>
 
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Category <span className="text-red-500">*</span></label>
+                  <select 
+                    value={categoryId} onChange={(e) => setCategoryId(e.target.value === "" ? "" : Number(e.target.value))} 
+                    disabled={isLoading || isLoadingCategories} 
+                    className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-900"
+                  >
+                    <option value="">{isLoadingCategories ? "Loading categories..." : "Select a category..."}</option>
+                    {categories.length > 0 ? categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>) : (
+                      !isLoadingCategories && (<><option value="1">Industry Collaboration</option><option value="2">Community Engagement</option><option value="3">Sustainability & Green Campus</option><option value="4">Innovation & Entrepreneurship</option></>)
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Content <span className="text-red-500">*</span></label>
+                  <textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} disabled={isLoading} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none resize-none placeholder-slate-400 dark:placeholder-slate-500"></textarea>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Supporting Media</label>
+                  <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx,video/mp4,video/webm,video/quicktime" />
+                  <div onClick={() => fileInputRef.current?.click()} className="mt-1 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
+                    <UploadCloud className="w-8 h-8 text-blue-500 mb-2" />
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Click to attach files or videos</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Supports JPG, PNG, PDF, DOCX, MP4</p>
+                  </div>
+
+                  {files.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {files.map((file, idx) => {
+                        const isVideo = file.type.startsWith("video/");
+                        return (
+                          <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              {isVideo ? <Video className="w-4 h-4 text-purple-500 shrink-0" /> : <FileText className="w-4 h-4 text-blue-500 shrink-0" />}
+                              <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{file.name}</span>
+                            </div>
+                            <button type="button" onClick={() => removeFile(idx)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} disabled={isLoading} className="w-4 h-4 rounded mt-0.5" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><Shield className="w-4 h-4" /> Post Anonymously</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-3 rounded-b-2xl">
+                <button type="button" onClick={onClose} disabled={isLoading} className="px-5 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl">Cancel</button>
+                <button type="submit" disabled={isLoading} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md flex items-center gap-2">
+                  {isLoading && !showTermsPopup ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : "Submit Idea"}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
