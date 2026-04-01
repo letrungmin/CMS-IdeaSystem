@@ -31,6 +31,11 @@ public class AcademicYearServiceImpl implements AcademicYearService {
 
         validateDates(request);
 
+        // if active = true → deactivate the rest academy year
+        if (request.active()) {
+            repository.deactivateAll();
+        }
+
         AcademicYearEntity entity = mapper.toEntity(request);
 
         repository.save(entity);
@@ -46,6 +51,10 @@ public class AcademicYearServiceImpl implements AcademicYearService {
                 .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
         validateDates(request);
+
+        if (request.active()) {
+            repository.deactivateAll();
+        }
 
         mapper.updateEntity(entity, request);
 
@@ -95,7 +104,12 @@ public class AcademicYearServiceImpl implements AcademicYearService {
         AcademicYearEntity entity = repository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
-        entity.setActive(active);
+        if (active) {
+            repository.deactivateAll();
+            entity.setActive(true);
+        } else {
+            entity.setActive(false);
+        }
 
         repository.save(entity);
 

@@ -2,6 +2,9 @@ package com.example.CRM1640.repositories.organization;
 
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -11,4 +14,9 @@ public interface AcademicYearRepository extends JpaRepository<AcademicYearEntity
     boolean existsByName(String name);
 
     Optional<AcademicYearEntity> findFirstByActiveTrue();
+
+
+    @Modifying
+    @Query("UPDATE AcademicYearEntity a SET a.active = false WHERE a.active = true")
+    void deactivateAll();
 }
