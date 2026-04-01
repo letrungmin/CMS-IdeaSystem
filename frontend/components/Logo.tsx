@@ -41,11 +41,6 @@ export default function Logo({ className = "h-8", showText = true, darkTheme = f
           <span className="font-extrabold text-xl tracking-tighter leading-none">
             UniIdeas
           </span>
-          <span className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${
-            darkTheme ? "text-slate-400" : "text-slate-500"
-          }`}>
-            Enterprise
-          </span>
         </div>
       )}
     </div>
