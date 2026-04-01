@@ -20,4 +20,10 @@ public interface IdeaService {
     void approve(Long ideaId);
 
     void reject(Long ideaId, String feedback);
+
+    Page<IdeaDetailResponse> getAllIReject(int page, int size);
+
+    Page<IdeaDetailResponse> getAllPending(int page, int size);
+
+    Page<IdeaDetailResponse> getAllStatusIdeas(int page, int size);
 }

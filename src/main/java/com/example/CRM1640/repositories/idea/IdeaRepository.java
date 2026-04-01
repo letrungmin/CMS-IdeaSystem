@@ -32,4 +32,7 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
     Page<IdeaEntity> findByAuthorIdOrderByCreatedAtDesc(Long authorId, Pageable pageable);
 
     List<IdeaEntity> findByStatus(IdeaStatus status);
+
+
+    Page<IdeaEntity> findByStatus(IdeaStatus status, Pageable pageable);
 }

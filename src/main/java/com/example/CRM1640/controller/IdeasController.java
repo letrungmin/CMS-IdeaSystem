@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -66,6 +67,58 @@ public class IdeasController {
 
         return ApiResponse.<Page<IdeaDetailResponse>>builder()
                 .result(ideaService.getAllIdeas(page, size))
+                .message("Get all ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+
+    // ================= GET ALL pending Ideas =================
+    @PreAuthorize("hasAuthority('ROLE_QA_MANAGER')")
+    @GetMapping("/pending")
+    public ApiResponse<Page<IdeaDetailResponse>> getAllPendingIdeas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllPending(page, size))
+                .message("Get all ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    // ================= GET Reject ALL =================
+    @PreAuthorize("hasAuthority('ROLE_QA_MANAGER')")
+    @GetMapping("/reject")
+    public ApiResponse<Page<IdeaDetailResponse>> getAllRejectIdeas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllIReject(page, size))
+                .message("Get all ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    // ================= GET all Status idea =================
+    @PreAuthorize("hasAuthority('ROLE_QA_MANAGER')")
+    @GetMapping("/all_status")
+    public ApiResponse<Page<IdeaDetailResponse>> getAllStatusIdeas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllStatusIdeas(page, size))
                 .message("Get all ideas successfully")
                 .path(http.getRequestURI())
                 .timestamp(System.currentTimeMillis())
