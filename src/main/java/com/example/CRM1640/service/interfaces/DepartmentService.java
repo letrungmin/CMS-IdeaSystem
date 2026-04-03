@@ -1,0 +1,19 @@
+package com.example.CRM1640.service.interfaces;
+
+import com.example.CRM1640.dto.request.DepartmentRequest;
+import com.example.CRM1640.dto.response.DepartmentResponse;
+
+import java.util.List;
+
+public interface DepartmentService {
+
+    DepartmentResponse create(DepartmentRequest request);
+
+    DepartmentResponse update(Long id, DepartmentRequest request);
+
+    void delete(Long id);
+
+    DepartmentResponse getById(Long id);
+
+    List<DepartmentResponse> getAll();
+}
