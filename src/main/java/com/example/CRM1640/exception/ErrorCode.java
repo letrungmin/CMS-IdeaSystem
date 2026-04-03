@@ -93,7 +93,16 @@ public enum ErrorCode {
 
     FOLDER_CREATE_FAILED(9013, "Cannot create folder", HttpStatus.INTERNAL_SERVER_ERROR),
 
-    PATH_TRAVERSAL_ATTACK(9014, "Path traversal attack", HttpStatus.INTERNAL_SERVER_ERROR)
+    PATH_TRAVERSAL_ATTACK(9014, "Path traversal attack", HttpStatus.INTERNAL_SERVER_ERROR),
+
+
+    // ===== Department =====
+    DEPARTMENT_NAME_EXIST(10001, "Department name already exists", HttpStatus.CONFLICT ),
+    USER_ALREADY_MANAGE_DEPARTMENT(10002, "User already manages another department. Choose another one", HttpStatus.CONFLICT),
+    DEPARTMENT_NOT_FOUND(10003, "Department not found", HttpStatus.NOT_FOUND),
+    DEPARTMENT_HAS_USERS(10004, "Department already has users assigned",HttpStatus.CONFLICT),
+    USER_NOT_QA_MANAGER(10005, "Assignee must have QA Manager role", HttpStatus.FORBIDDEN)
+
     ;
 
 
