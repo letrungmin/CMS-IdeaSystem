@@ -1,7 +1,6 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
-import com.example.CRM1640.dto.response.CommentPreviewResponse;
 import com.example.CRM1640.dto.response.FileResponse;
 import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
@@ -34,7 +33,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -298,6 +296,39 @@ public class IdeaServiceImpl implements IdeaService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         return ideaRepository.findAll(pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getAllMyApprovedIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        return ideaRepository.findByAuthorAndStatus(user, IdeaStatus.APPROVED, pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getAllMyPendingIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        return ideaRepository.findByAuthorAndStatus(user, IdeaStatus.PENDING, pageable)
+                .map(idea -> buildFullResponse(idea, user));
+    }
+
+    @Override
+    public Page<IdeaDetailResponse> getAllMyRejectedIdeas(int page, int size) {
+
+        UserEntity user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        return ideaRepository.findByAuthorAndStatus(user, IdeaStatus.REJECTED, pageable)
                 .map(idea -> buildFullResponse(idea, user));
     }
 
