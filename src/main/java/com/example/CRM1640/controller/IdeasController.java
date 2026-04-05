@@ -125,6 +125,51 @@ public class IdeasController {
                 .build();
     }
 
+    // ================= APPROVED =================
+    @GetMapping("/my/approved")
+    public ApiResponse<Page<IdeaDetailResponse>> getMyApproved(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllMyApprovedIdeas(page, size))
+                .message("Get my approved ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    // ================= PENDING =================
+    @GetMapping("/my/pending")
+    public ApiResponse<Page<IdeaDetailResponse>> getMyPending(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllMyPendingIdeas(page, size))
+                .message("Get my pending ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    // ================= REJECTED =================
+    @GetMapping("/my/rejected")
+    public ApiResponse<Page<IdeaDetailResponse>> getMyRejected(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest http
+    ) {
+        return ApiResponse.<Page<IdeaDetailResponse>>builder()
+                .result(ideaService.getAllMyRejectedIdeas(page, size))
+                .message("Get my rejected ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
     // ================= MY IDEAS =================
     @GetMapping("/me")
     public ApiResponse<Page<IdeaDetailResponse>> getMyIdeas(

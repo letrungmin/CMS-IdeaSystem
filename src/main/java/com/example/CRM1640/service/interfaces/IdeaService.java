@@ -26,4 +26,10 @@ public interface IdeaService {
     Page<IdeaDetailResponse> getAllPending(int page, int size);
 
     Page<IdeaDetailResponse> getAllStatusIdeas(int page, int size);
+
+    Page<IdeaDetailResponse> getAllMyApprovedIdeas(int page, int size);
+
+    Page<IdeaDetailResponse> getAllMyPendingIdeas(int page, int size);
+
+    Page<IdeaDetailResponse> getAllMyRejectedIdeas(int page, int size);
 }
