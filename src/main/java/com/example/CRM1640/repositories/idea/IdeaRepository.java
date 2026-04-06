@@ -42,4 +42,12 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
             IdeaStatus status,
             Pageable pageable
     );
+
+    @Query("""
+    SELECT COUNT(i)
+    FROM IdeaEntity i
+    WHERE i.author.id = :userId
+      AND i.status = com.example.CRM1640.enums.IdeaStatus.APPROVED
+""")
+    Long countApprovedIdeasByUserId(@Param("userId") Long userId);
 }
