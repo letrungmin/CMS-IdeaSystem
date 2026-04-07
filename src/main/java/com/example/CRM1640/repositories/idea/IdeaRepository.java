@@ -50,4 +50,30 @@ public interface IdeaRepository extends JpaRepository<IdeaEntity,Long> {
       AND i.status = com.example.CRM1640.enums.IdeaStatus.APPROVED
 """)
     Long countApprovedIdeasByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT COUNT(i) FROM IdeaEntity i")
+    Long countAllIdeas();
+
+    @Query("""
+    SELECT COUNT(r) * 1.0 / COUNT(DISTINCT i.id)
+    FROM ReactionEntity r
+    JOIN r.idea i
+""")
+    Double avgReactions();
+
+    @Query("""
+    SELECT d.name, COUNT(i)
+    FROM IdeaEntity i
+    JOIN i.department d
+    GROUP BY d.name
+""")
+    List<Object[]> countIdeasByDepartment();
+
+    @Query("""
+    SELECT 
+        SUM(CASE WHEN i.anonymous = false THEN 1 ELSE 0 END),
+        SUM(CASE WHEN i.anonymous = true THEN 1 ELSE 0 END)
+    FROM IdeaEntity i
+""")
+    List<Object[]> countPrivacy();
 }

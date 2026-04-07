@@ -19,4 +19,11 @@ public interface AcademicYearRepository extends JpaRepository<AcademicYearEntity
     @Modifying
     @Query("UPDATE AcademicYearEntity a SET a.active = false WHERE a.active = true")
     void deactivateAll();
+
+    @Query("""
+    SELECT a FROM AcademicYearEntity a
+    WHERE a.active = true
+""")
+    Optional<AcademicYearEntity> findActive();
+
 }
