@@ -104,7 +104,6 @@ public class AuthenticationController {
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request
     ) {
-
         return ApiResponse.<Page<UserResponseQAManagerRole>>builder()
                 .result(userService.getAllUsersForQAManager(page, size))
                 .message("Get all users for QA Manager successfully")
