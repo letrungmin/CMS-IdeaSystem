@@ -40,6 +40,14 @@ public class UserServiceImpl implements UserService {
                 .map(this::mapToQAManagerResponse);
     }
 
+    @Override
+    public Page<UserResponseAdminRole> getAllQAManagerWithoutDepartment(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+
+        return userRepository.findQAManagerWithoutDepartment(pageable)
+                .map(this::mapToAdminResponse);
+    }
+
     private UserResponseQAManagerRole mapToQAManagerResponse(UserEntity user) {
 
         List<String> roles = user.getRoles()

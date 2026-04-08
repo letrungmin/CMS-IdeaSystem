@@ -81,7 +81,7 @@ public class AuthenticationController {
                 .build();
     }
 
-    @PreAuthorize("hasAnyAuthority('ROLE_QA_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
     @GetMapping
     public ApiResponse<Page<UserResponseAdminRole>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -108,6 +108,22 @@ public class AuthenticationController {
                 .result(userService.getAllUsersForQAManager(page, size))
                 .message("Get all users for QA Manager successfully")
                 .path(request.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    @GetMapping("/qa-managers/available")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ApiResponse<Page<UserResponseAdminRole>> getAvailableQAManagers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest req
+    ) {
+
+        return ApiResponse.<Page<UserResponseAdminRole>>builder()
+                .result(userService.getAllQAManagerWithoutDepartment(page, size))
+                .message("Available QA Managers fetched successfully")
+                .path(req.getRequestURI())
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
