@@ -1,5 +1,6 @@
 package com.example.CRM1640.service.interfaces;
 
+import com.example.CRM1640.entities.other.EncourageEvent;
 import com.example.CRM1640.entities.other.IdeaEvent;
 
 public interface EmailService {
@@ -9,4 +10,6 @@ public interface EmailService {
     void sendApprovedEmail(IdeaEvent event);
 
     void sendRejectedEmail(IdeaEvent event);
+
+    void sendEncourageEmail(EncourageEvent event);
 }

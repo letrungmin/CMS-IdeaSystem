@@ -1,6 +1,7 @@
 package com.example.CRM1640.service.implementation;
 
 import com.example.CRM1640.config.RabbitMQConfig;
+import com.example.CRM1640.entities.other.EncourageEvent;
 import com.example.CRM1640.entities.other.IdeaEvent;
 import com.example.CRM1640.service.interfaces.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,11 @@ public class NotificationConsumer {
 
     private void handleRejected(IdeaEvent event) {
         emailService.sendRejectedEmail(event);
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_ENCOURAGE)
+    public void handleEncourage(EncourageEvent event) {
+        emailService.sendEncourageEmail(event);
     }
 
 }
