@@ -91,4 +91,10 @@ public class UserEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "department_id")
     private DepartmentEntity department;
+
+    @Column(nullable = false)
+    private Boolean active = true;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 }

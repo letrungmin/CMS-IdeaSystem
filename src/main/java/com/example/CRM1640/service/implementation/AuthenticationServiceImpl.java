@@ -84,6 +84,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new AppException(ErrorCode.WRONG_PASSWORD);
         }
 
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
         // Generate tokens
         String accessToken = jwtService.generateAccessToken(user);
         RefreshTokenEntity refreshToken = createRefreshToken(user);
