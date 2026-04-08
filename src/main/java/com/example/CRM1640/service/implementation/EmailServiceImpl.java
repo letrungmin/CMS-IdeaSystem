@@ -1,5 +1,6 @@
 package com.example.CRM1640.service.implementation;
 
+import com.example.CRM1640.entities.other.EncourageEvent;
 import com.example.CRM1640.entities.other.IdeaEvent;
 import com.example.CRM1640.service.interfaces.EmailService;
 import jakarta.mail.internet.MimeMessage;
@@ -84,6 +85,29 @@ public class EmailServiceImpl implements EmailService {
         );
 
         send(event.getAuthorEmail(), "Idea Rejected", html);
+    }
+
+    @Override
+    public void sendEncourageEmail(EncourageEvent event) {
+
+        String html = buildTemplate(
+                "🚀 Share Your Ideas!",
+                """
+                <p>Hello 👋</p>
+                <p>%s</p>
+                
+                <p><b>Department:</b> %s</p>
+                
+                <p>Don't miss your chance to contribute ideas 💡</p>
+                """.formatted(event.getMessage(), event.getDepartmentName()),
+                "Submit Idea",
+                "http://localhost:3000/ideas/create",
+                "#6f42c1"
+        );
+
+        for (String email : event.getEmails()) {
+            send(email, "🚀 Encourage Idea Submission", html);
+        }
     }
 
     // ================= CORE SEND =================

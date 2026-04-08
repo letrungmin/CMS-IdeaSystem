@@ -26,7 +26,7 @@ public class DepartmentEntity {
     @Column(nullable = false, unique = true)
     private String name;
 
-    // QA Coordinator của department
+    // QA Coordinator of department
     @OneToOne
     @JoinColumn(name = "qa_coordinator_id")
     private UserEntity qaCoordinator;

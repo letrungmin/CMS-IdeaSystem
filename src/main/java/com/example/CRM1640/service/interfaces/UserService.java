@@ -8,4 +8,6 @@ public interface UserService {
     Page<UserResponseAdminRole> getAllUsers(int page, int size);
 
     Page<UserResponseQAManagerRole> getAllUsersForQAManager(int page, int size);
+
+    Page<UserResponseAdminRole> getAllQAManagerWithoutDepartment(int page, int size);
 }
