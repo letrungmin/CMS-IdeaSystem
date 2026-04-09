@@ -5,12 +5,11 @@ import { createPortal } from "react-dom";
 import { 
   X, Clock, MessageSquare, Eye, Send, Share2, AlertTriangle, 
   ThumbsUp, ShieldAlert, FileText, Download, 
-  Image as ImageIcon, Video, Shield, Loader2, MessageCircle, User 
+  Image as ImageIcon, Video, Shield, Loader2, MessageCircle, User, Lock 
 } from "lucide-react";
 import { IdeaType } from "./IdeaCard";
 import { useLanguage } from "./LanguageProvider";
 
-// --- INTERFACES ---
 export interface CommentResponse {
   id: number;
   content: string;
@@ -51,7 +50,6 @@ interface IdeaDetailModalProps {
   onClose: () => void;
 }
 
-// External URLs for reactions
 const REACTION_EMOJIS = {
   LIKE: { icon: "https://raw.githubusercontent.com/corvasto/facebook-reactions-css/master/assets/like.svg", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30" },
   LOVE: { icon: "https://raw.githubusercontent.com/corvasto/facebook-reactions-css/master/assets/love.svg", color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-900/30" },
@@ -63,42 +61,34 @@ const REACTION_EMOJIS = {
 
 const getToken = () => {
   try {
-    const directToken = localStorage.getItem("accessToken");
-    if (directToken) return directToken;
-    const userStorage = localStorage.getItem("user");
-    if (userStorage) {
-      const userObj = JSON.parse(userStorage);
-      return userObj.accessToken || "";
+    let token = localStorage.getItem("accessToken") || "";
+    if (!token) {
+        const userStorage = localStorage.getItem("user");
+        if (userStorage) token = JSON.parse(userStorage).accessToken || "";
     }
-  } catch (e) {
-    console.error("Token error:", e);
-  }
+    return token;
+  } catch (e) {}
   return "";
 };
 
 const getFullFileUrl = (source?: string) => {
   if (!source) return ""; 
   if (source.startsWith("http")) return source;
-  
   let safeRelativeUrl = source.startsWith('/') ? source : `/${source}`;
-  if (safeRelativeUrl.startsWith('/files/')) {
-    safeRelativeUrl = `/api/v1${safeRelativeUrl}`;
-  }
-  
+  if (safeRelativeUrl.startsWith('/files/')) safeRelativeUrl = `/api/v1${safeRelativeUrl}`;
   return `http://localhost:9999${safeRelativeUrl}`;
 };
 
-// ========================================================
-// COMMENT ITEM COMPONENT
-// ========================================================
 const CommentItem = ({ 
   comment, 
   depth = 0, 
-  onReplyClick 
+  onReplyClick,
+  isPastFinalClosure
 }: { 
   comment: CommentResponse, 
   depth?: number,
-  onReplyClick: (c: CommentResponse) => void 
+  onReplyClick: (c: CommentResponse) => void,
+  isPastFinalClosure: boolean
 }) => {
   const [showReplies, setShowReplies] = useState(false);
   const [replies, setReplies] = useState<CommentResponse[]>(comment.replies || []);
@@ -128,15 +118,15 @@ const CommentItem = ({
         setReplies(data.result || []);
         setShowReplies(true);
       }
-    } catch (error) {
-      console.error("Error fetching replies:", error);
-    } finally {
-      setIsLoadingReplies(false);
-    }
+    } catch (error) {} finally { setIsLoadingReplies(false); }
   };
 
   const handleCommentReact = async (e: React.MouseEvent, type: string) => {
     e.stopPropagation();
+    if (isPastFinalClosure) {
+      alert("Hệ thống đã Bế quan tỏa cảng! Không thể thả tim lúc này.");
+      return;
+    }
     if (currentReaction === type) return;
 
     setReactionMap(prev => {
@@ -153,18 +143,10 @@ const CommentItem = ({
       const token = getToken();
       await fetch(`http://localhost:9999/api/v1/reactions/comment`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          commentId: comment.id,
-          type: type 
-        })
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ commentId: comment.id, type: type })
       });
-    } catch (error) {
-      console.error("Error reacting to comment:", error);
-    }
+    } catch (error) {}
   };
 
   const topReactions = Object.entries(reactionMap)
@@ -176,7 +158,6 @@ const CommentItem = ({
 
   return (
     <div className={`flex gap-3 ${depth > 0 ? "mt-4 relative before:absolute before:-left-5 before:top-0 before:w-px before:h-full before:bg-slate-200 dark:before:bg-slate-800" : "mt-6"}`}>
-      
       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm ${comment.anonymous ? "bg-slate-800 dark:bg-slate-700 text-slate-300" : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"}`}>
         {comment.anonymous ? <ShieldAlert className="w-4 h-4" /> : comment.authorName.substring(0, 2).toUpperCase()}
       </div>
@@ -204,23 +185,25 @@ const CommentItem = ({
         </div>
 
         <div className="flex items-center gap-4 mt-2 ml-2">
-          <div className="relative group/creaction flex items-center">
-            <div className="absolute bottom-full left-0 mb-1 hidden group-hover/creaction:flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-full px-2 py-1.5 animate-in fade-in slide-in-from-bottom-2 z-50 after:content-[''] after:absolute after:-bottom-4 after:left-0 after:w-full after:h-5">
-              {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
-                <button key={type} onClick={(e) => handleCommentReact(e, type)} className="hover:scale-125 hover:-translate-y-1 transition-all duration-200 origin-bottom rounded-full p-0.5" title={type}>
-                  <img src={REACTION_EMOJIS[type].icon} alt={type} className="w-6 h-6 object-contain drop-shadow-md" />
-                </button>
-              ))}
-            </div>
+          <div className={`relative ${!isPastFinalClosure ? 'group/creaction' : ''} flex items-center`}>
+            {!isPastFinalClosure && (
+              <div className="absolute bottom-full left-0 mb-1 hidden group-hover/creaction:flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-full px-2 py-1.5 animate-in fade-in slide-in-from-bottom-2 z-50 after:content-[''] after:absolute after:-bottom-4 after:left-0 after:w-full after:h-5">
+                {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
+                  <button key={type} onClick={(e) => handleCommentReact(e, type)} className="hover:scale-125 hover:-translate-y-1 transition-all duration-200 origin-bottom rounded-full p-0.5" title={type}>
+                    <img src={REACTION_EMOJIS[type].icon} alt={type} className="w-6 h-6 object-contain drop-shadow-md" />
+                  </button>
+                ))}
+              </div>
+            )}
             <button 
               onClick={(e) => handleCommentReact(e, currentReaction || "LIKE")}
-              className={`text-[12px] font-bold transition-colors ${currentReaction ? REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].color : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
+              className={`text-[12px] font-bold transition-colors ${currentReaction ? REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].color : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"} ${isPastFinalClosure ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               {currentReaction ? currentReaction.charAt(0) + currentReaction.slice(1).toLowerCase() : "Like"}
             </button>
           </div>
 
-          <button onClick={() => onReplyClick(comment)} className="text-[12px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+          <button onClick={() => { if (!isPastFinalClosure) onReplyClick(comment); }} className={`text-[12px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors ${isPastFinalClosure ? 'opacity-60 cursor-not-allowed hidden' : ''}`}>
             Reply
           </button>
         </div>
@@ -235,7 +218,7 @@ const CommentItem = ({
         {showReplies && replies.length > 0 && (
           <div className="ml-5">
             {replies.map(reply => (
-              <CommentItem key={reply.id} comment={reply} depth={depth + 1} onReplyClick={onReplyClick} />
+              <CommentItem key={reply.id} comment={reply} depth={depth + 1} onReplyClick={onReplyClick} isPastFinalClosure={isPastFinalClosure} />
             ))}
           </div>
         )}
@@ -244,10 +227,6 @@ const CommentItem = ({
   );
 };
 
-
-// ========================================================
-// MAIN MODAL
-// ========================================================
 export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailModalProps) {
   const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
@@ -263,6 +242,37 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
   const [isAnonymousComment, setIsAnonymousComment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [replyingTo, setReplyingTo] = useState<CommentResponse | null>(null);
+
+  // === ĐẠO BÙA FINAL CLOSURE DATE (ĐÃ XÓA CACHE) ===
+  const [isPastFinalClosure, setIsPastFinalClosure] = useState(false);
+
+  useEffect(() => {
+    const checkClosureStatus = async () => {
+      if (!isOpen) return; // Chỉ check khi Modal mở
+      try {
+        const token = getToken();
+        // Gọi thẳng BE, cấm cache
+        const response = await fetch("http://localhost:9999/api/v1/academic-years", {
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', ...(token ? { "Authorization": `Bearer ${token}` } : {}) }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const yearsList = Array.isArray(data.result) ? data.result : (data.result?.content || []);
+          const activeYear = yearsList.find((y: any) => y.active === true || y.isActive === true);
+          
+          if (activeYear && activeYear.finalClosureDate) {
+            let closureTime = new Date(activeYear.finalClosureDate).getTime();
+            if (activeYear.finalClosureDate.includes("T00:00:00")) closureTime += (24 * 60 * 60 * 1000) - 1000;
+            setIsPastFinalClosure(new Date().getTime() > closureTime);
+          } else if (!activeYear) {
+            setIsPastFinalClosure(true);
+          }
+        }
+      } catch (e) {}
+    };
+    checkClosureStatus();
+  }, [isOpen]);
+  // ====================================
 
   useEffect(() => {
     setMounted(true);
@@ -293,11 +303,7 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
         const data = await response.json();
         setIdeaDetail(data.result || data);
       }
-    } catch (error) {
-      console.error("Error fetching idea details:", error);
-    } finally {
-      setIsLoadingDetail(false);
-    }
+    } catch (error) {} finally { setIsLoadingDetail(false); }
   };
 
   const fetchRootComments = async () => {
@@ -313,15 +319,11 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
         const content = data.result?.content || data.content || [];
         setComments(content);
       }
-    } catch (error) {
-      console.error("Error fetching comments:", error);
-    } finally {
-      setIsLoadingComments(false);
-    }
+    } catch (error) {} finally { setIsLoadingComments(false); }
   };
 
   const handleSendComment = async () => {
-    if (!commentText.trim() || !idea) return;
+    if (!commentText.trim() || !idea || isPastFinalClosure) return;
     setIsSubmitting(true);
     try {
       const token = getToken();
@@ -334,10 +336,7 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
 
       const response = await fetch("http://localhost:9999/api/v1/comments", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify(payload)
       });
 
@@ -350,23 +349,22 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
         const errText = await response.text();
         alert("Error posting comment: " + errText);
       }
-    } catch (error) {
-      console.error("Network error when posting comment:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (error) {} finally { setIsSubmitting(false); }
   };
 
   const handleIdeaReact = async (e: React.MouseEvent, type: string) => {
     e.stopPropagation(); 
     if (!ideaDetail) return;
+    if (isPastFinalClosure) {
+      alert("Hệ thống đã Bế quan tỏa cảng! Không thể thao tác.");
+      return;
+    }
     
     const previousReaction = ideaDetail.myReaction === "NONE" ? null : ideaDetail.myReaction;
     const previousCounts = { ...ideaDetail.reactions };
 
     setIdeaDetail(prev => {
       if (!prev) return prev;
-      
       const newCounts = { ...prev.reactions };
       const currentReact = prev.myReaction === "NONE" ? null : prev.myReaction;
 
@@ -387,10 +385,7 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
       const token = getToken();
       const response = await fetch(`http://localhost:9999/api/v1/reactions/idea`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify({ ideaId: ideaDetail.id, type: type })
       });
 
@@ -401,10 +396,6 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
           setIdeaDetail(prev => prev ? { ...prev, reactions: apiData.counts, myReaction: apiData.myReaction === "NONE" ? null : apiData.myReaction, totalReactions: apiData.total } : prev);
         }
       } else {
-        const errorText = await response.text();
-        if (errorText.includes("period has ended")) {
-           alert("Reaction period for this idea has ended!");
-        }
         setIdeaDetail(prev => prev ? { ...prev, reactions: previousCounts, myReaction: previousReaction } : prev);
       }
     } catch (error) {
@@ -447,11 +438,8 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
   return createPortal(
     <>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
-        
         <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={handleClose}></div>
-
         <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 border border-transparent dark:border-slate-800">
-          
           <button onClick={handleClose} className="absolute top-4 right-4 z-10 p-2 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-full transition-colors backdrop-blur-sm shadow-md">
             <X className="w-5 h-5" />
           </button>
@@ -465,7 +453,6 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar relative">
-                  
                   <div className="flex items-center justify-between mb-6">
                     <span title={(displayData as any).departmentName || displayData.categoryName} className={`text-xs font-bold px-3 py-1.5 rounded-full border uppercase tracking-wider max-w-[70%] truncate ${displayData.isAnonymous || (displayData as any).anonymous ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700" : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/50"}`}>
                       {(displayData as any).departmentName || displayData.categoryName}
@@ -553,20 +540,21 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
                 </div>
 
                 <div className="p-4 md:p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20 flex items-center justify-between">
-                  <div className="relative group/reaction flex items-center">
-                    
-                    <div className="absolute bottom-full left-0 mb-3 hidden group-hover/reaction:flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] rounded-full px-3 py-2 animate-in fade-in slide-in-from-bottom-4 z-[100] transition-colors duration-300 after:content-[''] after:absolute after:-bottom-5 after:left-0 after:w-full after:h-8">
-                      {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
-                        <button
-                          key={type}
-                          onClick={(e) => handleIdeaReact(e, type)}
-                          className="hover:scale-125 hover:-translate-y-2.5 transition-all duration-200 origin-bottom rounded-full p-0.5"
-                          title={type}
-                        >
-                          <img src={REACTION_EMOJIS[type as keyof typeof REACTION_EMOJIS].icon} alt={type} className="w-10 h-10 object-contain drop-shadow-md" />
-                        </button>
-                      ))}
-                    </div>
+                  <div className={`relative ${!isPastFinalClosure ? 'group/reaction' : ''} flex items-center`}>
+                    {!isPastFinalClosure && (
+                      <div className="absolute bottom-full left-0 mb-3 hidden group-hover/reaction:flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] rounded-full px-3 py-2 animate-in fade-in slide-in-from-bottom-4 z-[100] transition-colors duration-300 after:content-[''] after:absolute after:-bottom-5 after:left-0 after:w-full after:h-8">
+                        {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
+                          <button
+                            key={type}
+                            onClick={(e) => handleIdeaReact(e, type)}
+                            className="hover:scale-125 hover:-translate-y-2.5 transition-all duration-200 origin-bottom rounded-full p-0.5"
+                            title={type}
+                          >
+                            <img src={REACTION_EMOJIS[type as keyof typeof REACTION_EMOJIS].icon} alt={type} className="w-10 h-10 object-contain drop-shadow-md" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     <button 
                       onClick={(e) => {
@@ -577,7 +565,7 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
                         currentReaction 
                           ? REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].bg + " " + REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].color 
                           : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
-                      }`}
+                      } ${isPastFinalClosure ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
                       <div className="flex items-center">
                         {totalIdeaReactions > 0 ? (
@@ -590,11 +578,11 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
                             />
                           ))
                         ) : (
-                          <ThumbsUp className="w-4 h-4 opacity-70" />
+                          isPastFinalClosure ? <Lock className="w-4 h-4 opacity-70" /> : <ThumbsUp className="w-4 h-4 opacity-70" />
                         )}
                       </div>
                       <span className={currentReaction ? "" : "opacity-80"}>
-                        {totalIdeaReactions > 0 ? totalIdeaReactions : "React"}
+                        {totalIdeaReactions > 0 ? totalIdeaReactions : (isPastFinalClosure ? "Locked" : "React")}
                       </span>
                     </button>
                   </div>
@@ -609,7 +597,6 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
           </div>
 
           <div className="w-full md:w-[40%] h-full flex flex-col bg-slate-50 dark:bg-slate-950 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800">
-            
             <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -636,6 +623,7 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
                       key={comment.id} 
                       comment={comment} 
                       onReplyClick={(c) => setReplyingTo(c)} 
+                      isPastFinalClosure={isPastFinalClosure}
                     />
                   ))}
                 </div>
@@ -643,53 +631,61 @@ export default function IdeaDetailModal({ idea, isOpen, onClose }: IdeaDetailMod
             </div>
             
             <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex flex-col">
-              
-              {replyingTo && (
-                <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50 flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5" /> 
-                    Replying to <span className="text-slate-800 dark:text-white bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded shadow-sm">{replyingTo.authorName}</span>
-                  </span>
-                  <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full text-blue-600 dark:text-blue-400 transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
+              {/* NẾU ĐÃ QUÁ HẠN, HIỆN Ổ KHÓA CẤM BÌNH LUẬN */}
+              {isPastFinalClosure ? (
+                <div className="w-full p-6 bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500 border-t-4 border-slate-200 dark:border-slate-800">
+                  <Lock className="w-8 h-8 mb-1 opacity-50" />
+                  <p className="text-sm font-black uppercase tracking-widest text-center">Final Closure Reached</p>
+                  <p className="text-xs text-center max-w-[85%] leading-relaxed">The discussion period for the current academic year has ended. New comments are no longer accepted.</p>
                 </div>
+              ) : (
+                <>
+                  {replyingTo && (
+                    <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50 flex items-center justify-between">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5" /> 
+                        Replying to <span className="text-slate-800 dark:text-white bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded shadow-sm">{replyingTo.authorName}</span>
+                      </span>
+                      <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full text-blue-600 dark:text-blue-400 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                      <textarea 
+                        rows={2} 
+                        placeholder={replyingTo ? "Write a reply..." : "Write a comment..."} 
+                        value={commentText} 
+                        onChange={(e) => setCommentText(e.target.value)} 
+                        disabled={isSubmitting}
+                        className="flex-1 bg-transparent text-sm p-2 outline-none resize-none text-slate-900 dark:text-white"
+                      ></textarea>
+                      <button 
+                        onClick={handleSendComment}
+                        disabled={!commentText.trim() || isSubmitting} 
+                        className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0 mt-auto flex items-center justify-center h-10 w-10"
+                      >
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
+                      </button>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer w-fit">
+                      <input type="checkbox" checked={isAnonymousComment} onChange={(e) => setIsAnonymousComment(e.target.checked)} className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 hover:text-slate-700 transition-colors">
+                        <Shield className="w-3.5 h-3.5" /> Comment Anonymously
+                      </span>
+                    </label>
+                  </div>
+                </>
               )}
-
-              <div className="p-4 flex flex-col gap-3">
-                <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                  <textarea 
-                    rows={2} 
-                    placeholder={replyingTo ? "Write a reply..." : "Write a comment..."} 
-                    value={commentText} 
-                    onChange={(e) => setCommentText(e.target.value)} 
-                    disabled={isSubmitting}
-                    className="flex-1 bg-transparent text-sm p-2 outline-none resize-none text-slate-900 dark:text-white"
-                  ></textarea>
-                  <button 
-                    onClick={handleSendComment}
-                    disabled={!commentText.trim() || isSubmitting} 
-                    className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0 mt-auto flex items-center justify-center h-10 w-10"
-                  >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
-                  </button>
-                </div>
-
-                <label className="flex items-center gap-2 cursor-pointer w-fit">
-                  <input type="checkbox" checked={isAnonymousComment} onChange={(e) => setIsAnonymousComment(e.target.checked)} className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 hover:text-slate-700 transition-colors">
-                    <Shield className="w-3.5 h-3.5" /> Comment Anonymously
-                  </span>
-                </label>
-              </div>
             </div>
 
           </div>
-          
         </div>
       </div>
 
-      {/* LIGHTBOX FOR FULL SCREEN IMAGES */}
       {fullScreenImage && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={(e) => { e.stopPropagation(); setFullScreenImage(null); }}>
           <button className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors" onClick={(e) => { e.stopPropagation(); setFullScreenImage(null); }}><X className="w-6 h-6" /></button>

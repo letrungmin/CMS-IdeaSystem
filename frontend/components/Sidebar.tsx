@@ -16,7 +16,7 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string>("ROLE_STAFF");
   const [isMounted, setIsMounted] = useState(false);
 
-  const { t, locale } = useLanguage();
+  const { t } = useLanguage();
 
   useEffect(() => {
     setIsMounted(true);
@@ -24,7 +24,7 @@ export default function Sidebar() {
     if (storedRole) {
       setUserRole(storedRole);
     }
-  }, []);
+  }, [pathname]);
 
   const STAFF_MENU = [
     { name: t("sidebar.home_feed"), icon: <Home className="w-5 h-5" />, path: "/home" },
@@ -56,7 +56,6 @@ export default function Sidebar() {
     { name: t("sidebar.settings"), icon: <Settings className="w-5 h-5" />, path: "/settings" },
   ];
 
-  // --- ROLE LOGIC & THEMING ---
   let menuItems = STAFF_MENU;
   let activeColor = "bg-blue-600 shadow-blue-600/20";
   let avatarColor = "bg-gradient-to-br from-blue-500 to-indigo-600";
@@ -92,7 +91,6 @@ export default function Sidebar() {
   return (
     <aside className={`flex flex-col h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 shrink-0 shadow-sm dark:shadow-md z-50 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
 
-      {/* BRAND HEADER */}
       <div className={`h-20 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors duration-300 ${isCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
         {!isCollapsed && (
           <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
@@ -109,7 +107,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* NAVIGATION MENU */}
       <nav className="flex-1 overflow-y-auto py-6 space-y-2 custom-scrollbar px-3">
         {!isCollapsed && (
           <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4 animate-in fade-in">
@@ -140,7 +137,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* FOOTER */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-4 transition-colors duration-300">
         {!isCollapsed ? (
           <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50 animate-in fade-in shadow-sm dark:shadow-none">

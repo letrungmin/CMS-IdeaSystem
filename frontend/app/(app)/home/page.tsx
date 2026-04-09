@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import IdeaCard, { IdeaType } from "@/components/IdeaCard";
 import IdeaDetailModal from "@/components/IdeaDetailModal";
-import { Loader2, TrendingUp, Clock, Flame, PlusCircle, ShieldAlert, FileText, Settings } from "lucide-react";
+import SubmitIdeaModal from "@/components/SubmitIdeaModal"; // <-- ĐẢM BẢO FILE NÀY TỒN TẠI Ở THƯ MỤC COMPONENTS
+import { Loader2, TrendingUp, Clock, Flame, PlusCircle, ShieldAlert, FileText, Settings, Lightbulb } from "lucide-react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { getRoleFromToken } from "@/utils/auth";
 import { useRouter } from "next/navigation";
@@ -22,9 +23,39 @@ export default function HomeFeedPage() {
 
   const [selectedIdea, setSelectedIdea] = useState<IdeaType | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  
+  const [isPastClosureDate, setIsPastClosureDate] = useState(false);
 
-  // Retrieve role directly from token
   const userRole = getRoleFromToken();
+  const canSubmitIdea = userRole === "ROLE_STUDENT" || userRole === "ROLE_STAFF";
+
+  const checkAcademicYearStatus = async () => {
+    try {
+      const token = localStorage.getItem("accessToken") || localStorage.getItem("token") || "";
+      const response = await fetch("http://localhost:9999/api/v1/academic-years", {
+        headers: { 'Cache-Control': 'no-cache', ...(token ? { "Authorization": `Bearer ${token}` } : {}) }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const yearsList = Array.isArray(data.result) ? data.result : (data.result?.content || []);
+        const activeYear = yearsList.find((y: any) => y.active === true || y.isActive === true);
+        
+        if (activeYear && activeYear.ideaClosureDate) {
+          let closureTime = new Date(activeYear.ideaClosureDate).getTime();
+          
+          if (activeYear.ideaClosureDate.includes("T00:00:00")) {
+            closureTime += (24 * 60 * 60 * 1000) - 1000;
+          }
+
+          const now = new Date().getTime();
+          if (now > closureTime) {
+            setIsPastClosureDate(true);
+          }
+        }
+      }
+    } catch (e) {}
+  };
 
   const fetchIdeas = async () => {
     setIsLoading(true);
@@ -90,16 +121,17 @@ export default function HomeFeedPage() {
         setIdeas([]); setTotalPages(1);
       }
     } catch (err) {
-      console.error("Home Feed Fetch Error:", err);
       setIdeas([]); 
     } finally { 
       setIsLoading(false); 
     }
   };
 
-  useEffect(() => { fetchIdeas(); }, [currentPage, sortBy, refreshKey]);
+  useEffect(() => { 
+    fetchIdeas(); 
+    checkAcademicYearStatus();
+  }, [currentPage, sortBy, refreshKey]);
 
-  // Role-based render functions
   const renderRoleSpecificBanner = () => {
     switch(userRole) {
       case "ROLE_QA_MANAGER":
@@ -110,16 +142,12 @@ export default function HomeFeedPage() {
                 <ShieldAlert className="w-6 h-6 shrink-0" />
                 <p className="font-semibold text-sm">You have pending ideas waiting for approval in the QA Queue.</p>
               </div>
-              <button 
-                onClick={() => router.push("/qa-queue")}
-                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap"
-              >
+              <button onClick={() => router.push("/qa-queue")} className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap">
                 Go to QA Queue
               </button>
             </div>
           </div>
         );
-      
       case "ROLE_ADMIN":
         return (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 mt-4">
@@ -128,16 +156,12 @@ export default function HomeFeedPage() {
                 <Settings className="w-6 h-6 text-blue-400 shrink-0" />
                 <p className="font-semibold text-sm">Administrator Access Active. System running normally.</p>
               </div>
-              <button 
-                onClick={() => router.push("/admin/dashboard")}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap"
-              >
+              <button onClick={() => router.push("/admin/dashboard")} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap">
                 System Dashboard
               </button>
             </div>
           </div>
         );
-
       case "ROLE_QA_COORDINATOR":
         return (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 mt-4">
@@ -146,53 +170,54 @@ export default function HomeFeedPage() {
                 <FileText className="w-6 h-6 shrink-0" />
                 <p className="font-semibold text-sm">Manage ideas and assign categories within your department.</p>
               </div>
-              <button 
-                onClick={() => router.push("/dept-dashboard")}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap"
-              >
+              <button onClick={() => router.push("/dept-dashboard")} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md whitespace-nowrap">
                 Department Dashboard
               </button>
             </div>
           </div>
         );
-      
       default:
-        // No special banner for staff or pending load
         return null;
     }
   };
 
   return (
     <div className="w-full pb-20 flex flex-col transition-colors duration-300 relative">
-      
-      {/* Sticky header bar */}
       <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
               {t("home.title")}
             </h1>
           </div>
-          
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-fit transition-colors shadow-inner">
-            <button onClick={() => { setSortBy("latest"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'latest' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-              <Clock className="w-4 h-4" /> {t("home.latest")}
-            </button>
-            <button onClick={() => { setSortBy("popular"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'popular' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-              <TrendingUp className="w-4 h-4" /> {t("home.popular")}
-            </button>
-            <button onClick={() => { setSortBy("viewed"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'viewed' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-              <Flame className="w-4 h-4" /> {t("home.viewed")}
-            </button>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-fit transition-colors shadow-inner">
+              <button onClick={() => { setSortBy("latest"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'latest' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Clock className="w-4 h-4" /> {t("home.latest")}</button>
+              <button onClick={() => { setSortBy("popular"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'popular' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><TrendingUp className="w-4 h-4" /> {t("home.popular")}</button>
+              <button onClick={() => { setSortBy("viewed"); setCurrentPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${sortBy === 'viewed' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><Flame className="w-4 h-4" /> {t("home.viewed")}</button>
+            </div>
+
+            {canSubmitIdea && (
+              <button 
+                onClick={() => !isPastClosureDate && setIsSubmitModalOpen(true)}
+                disabled={isPastClosureDate}
+                title={isPastClosureDate ? "Submission period has ended" : ""}
+                className={`hidden md:flex items-center gap-2 px-5 py-2.5 font-bold rounded-xl transition-all border 
+                  ${isPastClosureDate 
+                    ? "bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 shadow-none" 
+                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 dark:shadow-none active:scale-95 border-blue-500"
+                  }`}
+              >
+                <Lightbulb className="w-4 h-4" /> 
+                <span>{isPastClosureDate ? "Closed" : "Submit Idea"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Render banner based on permissions */}
       {renderRoleSpecificBanner()}
 
-      {/* Feed content */}
       <div className={`max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 space-y-6 ${userRole === "ROLE_STAFF" ? "mt-6" : ""}`}>
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -210,7 +235,6 @@ export default function HomeFeedPage() {
             {ideas.map((idea) => (
               <IdeaCard key={idea.id} idea={idea} onClick={() => { setSelectedIdea(idea); setIsDetailModalOpen(true); }} />
             ))}
-            
             <div className="flex items-center justify-between pt-8 border-t border-slate-200 dark:border-slate-800 mt-8 transition-colors">
               <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
                 {t("common.previous")}
@@ -226,19 +250,25 @@ export default function HomeFeedPage() {
         )}
       </div>
 
-      {/* Floating action button: Staff or default only */}
-      {(userRole === "ROLE_STAFF" || userRole === null) && (
+      {canSubmitIdea && (
         <motion.button 
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => router.push("/submit-idea")}
-          className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-full shadow-[0_10px_30px_rgba(37,99,235,0.4)] font-bold text-lg border border-blue-400/30 group"
+          whileHover={!isPastClosureDate ? { scale: 1.05 } : {}}
+          whileTap={!isPastClosureDate ? { scale: 0.95 } : {}}
+          disabled={isPastClosureDate}
+          onClick={() => setIsSubmitModalOpen(true)}
+          title={isPastClosureDate ? "Submission period has ended" : "Submit a new Idea"}
+          className={`fixed bottom-8 right-8 z-50 flex items-center gap-2 px-6 py-4 rounded-full font-bold text-lg border transition-all group
+            ${isPastClosureDate 
+              ? "bg-slate-300 text-slate-500 border-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 shadow-none" 
+              : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_30px_rgba(37,99,235,0.4)] border-blue-400/30"
+            }`}
         >
-          <PlusCircle className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
-          <span className="hidden md:inline">Submit Idea</span>
+          <PlusCircle className={`w-6 h-6 ${!isPastClosureDate && "group-hover:rotate-90"} transition-transform duration-300`} />
+          <span className="hidden md:inline">{isPastClosureDate ? "Closed" : "Submit Idea"}</span>
         </motion.button>
       )}
 
+      <SubmitIdeaModal isOpen={isSubmitModalOpen} onClose={() => setIsSubmitModalOpen(false)} onSuccess={() => setRefreshKey(prev => prev + 1)} />
       <IdeaDetailModal isOpen={isDetailModalOpen} idea={selectedIdea} onClose={() => setIsDetailModalOpen(false)} />
     </div>
   );

@@ -21,8 +21,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendReviewEmail(IdeaEvent event) {
 
-        String link = BASE_URL + "/ideas/" + event.getIdeaId();
-
+        String link = BASE_URL + "/qa-queue?reviewId=" + event.getIdeaId();
         String content = """
             <p><b>Title:</b> %s</p>
             <p><b>Author:</b> %s</p>
