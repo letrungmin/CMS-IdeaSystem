@@ -2,15 +2,19 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Search, Bell, Lightbulb, LogOut } from "lucide-react";
 import SubmitIdeaModal from "./SubmitIdeaModal";
 import { useLanguage } from "./LanguageProvider";
 import { useAuth } from "./AuthProvider";
 
 export default function TopBar() {
+  const pathname = usePathname();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [userRole, setUserRole] = useState("ROLE_STAFF");
+  const [userName, setUserName] = useState("My Profile");
   const [isMounted, setIsMounted] = useState(false);
+  const [isPastClosureDate, setIsPastClosureDate] = useState(false);
 
   const { t } = useLanguage();
   const { logout } = useAuth();
@@ -18,10 +22,45 @@ export default function TopBar() {
   useEffect(() => {
     setIsMounted(true);
     const role = localStorage.getItem("user_role");
+    const name = localStorage.getItem("username");
+    
     if (role) {
       setUserRole(role);
     }
-  }, []);
+    if (name) {
+      setUserName(name);
+    }
+
+    checkAcademicYearStatus();
+  }, [pathname]);
+
+  const checkAcademicYearStatus = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      // Dùng đúng API Get All Academic Years như bên Admin
+      const response = await fetch("http://localhost:9999/api/v1/academic-years", {
+        headers: { ...(token ? { "Authorization": `Bearer ${token}` } : {}) }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const yearsList = data.result || [];
+        
+        // Tìm năm học đang Active
+        const activeYear = yearsList.find((y: any) => y.active === true);
+        
+        if (activeYear && activeYear.ideaClosureDate) {
+          const closureTime = new Date(activeYear.ideaClosureDate).getTime();
+          const now = new Date().getTime();
+          if (now > closureTime) {
+            setIsPastClosureDate(true);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to check academic year status", e);
+    }
+  };
 
   if (!isMounted) return null;
 
@@ -56,8 +95,14 @@ export default function TopBar() {
           
           {canSubmitIdea && (
             <button 
-              onClick={() => setIsSubmitModalOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 dark:shadow-none active:scale-95 border border-blue-500"
+              onClick={() => !isPastClosureDate && setIsSubmitModalOpen(true)}
+              disabled={isPastClosureDate}
+              title={isPastClosureDate ? "Submission period has ended" : ""}
+              className={`hidden sm:flex items-center gap-2 px-5 py-2.5 font-bold rounded-full transition-all border 
+                ${isPastClosureDate 
+                  ? "bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 shadow-none" 
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 dark:shadow-none active:scale-95 border-blue-500"
+                }`}
             >
               <Lightbulb className="w-4 h-4" /> 
               <span>{t("topbar.submit_idea")}</span>
@@ -85,10 +130,10 @@ export default function TopBar() {
                 userRole === "ROLE_QA_COORDINATOR" ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800/50" :
                 "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"}`}
             >
-              U
+              {userName.charAt(0).toUpperCase()}
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{t("topbar.my_profile")}</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{userName}</p>
               <p className={`text-[10px] font-black uppercase tracking-widest leading-tight mt-0.5
                 ${userRole === "ROLE_ADMIN" ? "text-rose-500 dark:text-rose-400" : 
                   userRole === "ROLE_QA_MANAGER" ? "text-emerald-500 dark:text-emerald-400" :

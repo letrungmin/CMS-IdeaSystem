@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { LogIn, Lightbulb, ShieldCheck, Mail, Lock, Loader2, X, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Logo from "@/components/Logo";
+import { getRoleFromToken } from "@/utils/auth"; 
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, scale: 0.8, y: 50, rotateX: -15 },
@@ -131,7 +132,7 @@ export default function IndexPage() {
 
       const userInfo = data.result || data;
 
-      // Chỉ lưu thông tin user cơ bản và Token
+      // 1. Lưu thông tin cơ bản
       localStorage.setItem("user", JSON.stringify(userInfo));
       
       const tokenToSave = userInfo?.token || userInfo?.accessToken;
@@ -140,9 +141,32 @@ export default function IndexPage() {
         localStorage.setItem("accessToken", tokenToSave);
       }
 
-      // Đã gỡ bỏ toàn bộ logic lưu "user_role" ở đây
+      // 2. GIẢI MÃ ROLE TỪ TOKEN ĐỂ SIDEBAR & TOPBAR ĐỔI GIAO DIỆN
+      const decodedRole = getRoleFromToken();
+      localStorage.setItem("user_role", decodedRole || "ROLE_STAFF");
+      localStorage.setItem("username", userInfo.username || formData.username);
 
-      router.push("/home"); 
+      // 3. LẤY MẬT LỆNH REDIRECT TỪ URL 
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectUrl = urlParams.get("redirect");
+      
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
+
+      // 4. ĐIỀU HƯỚNG MẶC ĐỊNH
+      let destination = "/home";
+      if (decodedRole === "ROLE_ADMIN") {
+        destination = "/admin-accounts";
+      } else if (decodedRole === "ROLE_QA_MANAGER") {
+        destination = "/qa-queue";
+      } else if (decodedRole === "ROLE_QA_COORDINATOR") {
+        destination = "/dept-dashboard";
+      }
+
+      // Ép tải lại trang để Layout nhận diện Role mới
+      window.location.href = destination;
 
     } catch (err: any) {
       setError(err.message);

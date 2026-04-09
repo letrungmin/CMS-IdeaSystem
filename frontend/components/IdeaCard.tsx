@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { MessageSquare, Eye, Paperclip, User, Clock, ShieldAlert, PlayCircle, X, ThumbsUp } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { MessageSquare, Eye, Paperclip, User, Clock, ShieldAlert, PlayCircle, X, ThumbsUp, Lock } from "lucide-react";
 import { useLanguage } from "./LanguageProvider";
 
-// --- INTERFACES ---
 export interface AttachmentType {
   fileName?: string;
   url?: string;
@@ -40,12 +39,9 @@ interface IdeaCardProps {
   onClick?: () => void;
 }
 
-// ==========================================
-// 🔥 FIX LỖI TÀNG HÌNH: CẤP ID MÀU ĐỘC LẬP CHO TỪNG ICON
-// ==========================================
 const ReactionIcon = ({ type, className = "" }: { type: string, className?: string }) => {
-  const uid = React.useId(); // Sinh ID ngẫu nhiên chống trùng lặp màu
-  const gid = `grad-${type}-${uid}`.replace(/:/g, ""); // Dọn dẹp ID cho an toàn
+  const uid = React.useId(); 
+  const gid = `grad-${type}-${uid}`.replace(/:/g, ""); 
 
   switch (type) {
     case "LIKE":
@@ -160,6 +156,51 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
   const [playingVideoIdx, setPlayingVideoIdx] = useState<number | null>(null);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
 
+  // === ĐẠO BÙA FINAL CLOSURE DATE (ĐÃ XÓA CACHE LÚ) ===
+  const [isPastFinalClosure, setIsPastFinalClosure] = useState(false);
+
+  useEffect(() => {
+    const checkClosureStatus = async () => {
+      try {
+        let token = localStorage.getItem("accessToken") || "";
+        if (!token) {
+          const userStorage = localStorage.getItem("user");
+          if (userStorage) {
+            token = JSON.parse(userStorage).accessToken || "";
+          }
+        }
+        
+        // Gọi thẳng BE, cấm cache
+        const response = await fetch("http://localhost:9999/api/v1/academic-years", {
+          headers: { 
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}) 
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const yearsList = Array.isArray(data.result) ? data.result : (data.result?.content || []);
+          const activeYear = yearsList.find((y: any) => y.active === true || y.isActive === true);
+          
+          if (activeYear && activeYear.finalClosureDate) {
+            let closureTime = new Date(activeYear.finalClosureDate).getTime();
+            if (activeYear.finalClosureDate.includes("T00:00:00")) closureTime += (24 * 60 * 60 * 1000) - 1000;
+            const isClosed = new Date().getTime() > closureTime;
+            setIsPastFinalClosure(isClosed);
+          } else if (!activeYear) {
+            // Không có năm học nào active -> Khóa luôn cho an toàn
+            setIsPastFinalClosure(true);
+          }
+        }
+      } catch (e) {
+        console.error("Lỗi check deadline:", e);
+      }
+    };
+    checkClosureStatus();
+  }, []);
+  // ====================================
+
   const [currentReaction, setCurrentReaction] = useState(
     idea?.userReaction || null
   );
@@ -207,6 +248,11 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
   const handleReact = async (e: React.MouseEvent, type: keyof typeof REACTION_EMOJIS) => {
     e.stopPropagation(); 
     
+    if (isPastFinalClosure) {
+      alert("Hệ thống đã Bế quan tỏa cảng! Thời hạn tương tác cho ý tưởng này đã kết thúc.");
+      return;
+    }
+    
     const previousReaction = currentReaction;
     const previousCounts = { ...reactionCounts };
 
@@ -232,10 +278,9 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
         try {
           const userObj = JSON.parse(userStorage);
           token = userObj.accessToken || "";
-        } catch (parseError) {
-          console.error("❌ Lỗi format rương user");
-        }
+        } catch (parseError) {}
       }
+      token = token || localStorage.getItem("accessToken") || "";
 
       const response = await fetch(`http://localhost:9999/api/v1/reactions/idea`, {
         method: "POST",
@@ -270,6 +315,7 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
         const errorText = await response.text();
         if (errorText.includes("period has ended")) {
           alert("Thời gian thả tim cho ý tưởng này đã kết thúc!");
+          setIsPastFinalClosure(true); // Cập nhật lại UI lập tức
         }
         setCurrentReaction(previousReaction);
         setReactionCounts(previousCounts);
@@ -364,20 +410,22 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
 
         <div className="px-6 py-4 mt-auto border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between gap-6 overflow-visible transition-colors">
           
-          <div className="relative group/reaction flex items-center">
+          <div className={`relative ${!isPastFinalClosure ? 'group/reaction' : ''} flex items-center`}>
             
-            <div className="absolute bottom-full left-0 mb-3 hidden group-hover/reaction:flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] rounded-full px-3 py-2 animate-in fade-in slide-in-from-bottom-4 z-[100] transition-colors duration-300 after:content-[''] after:absolute after:-bottom-5 after:left-0 after:w-full after:h-8">
-              {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
-                <button
-                  key={type}
-                  onClick={(e) => handleReact(e, type as keyof typeof REACTION_EMOJIS)}
-                  className="hover:scale-125 hover:-translate-y-2.5 transition-all duration-200 origin-bottom rounded-full p-0.5"
-                  title={type}
-                >
-                  <ReactionIcon type={type} className="w-10 h-10 drop-shadow-md" />
-                </button>
-              ))}
-            </div>
+            {!isPastFinalClosure && (
+              <div className="absolute bottom-full left-0 mb-3 hidden group-hover/reaction:flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] rounded-full px-3 py-2 animate-in fade-in slide-in-from-bottom-4 z-[100] transition-colors duration-300 after:content-[''] after:absolute after:-bottom-5 after:left-0 after:w-full after:h-8">
+                {(Object.keys(REACTION_EMOJIS) as Array<keyof typeof REACTION_EMOJIS>).map((type) => (
+                  <button
+                    key={type}
+                    onClick={(e) => handleReact(e, type as keyof typeof REACTION_EMOJIS)}
+                    className="hover:scale-125 hover:-translate-y-2.5 transition-all duration-200 origin-bottom rounded-full p-0.5"
+                    title={type}
+                  >
+                    <ReactionIcon type={type} className="w-10 h-10 drop-shadow-md" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             <button 
               onClick={(e) => {
@@ -388,7 +436,7 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
                 currentReaction 
                   ? REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].bg + " " + REACTION_EMOJIS[currentReaction as keyof typeof REACTION_EMOJIS].color 
                   : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
-              }`}
+              } ${isPastFinalClosure ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center">
                 {totalReactions > 0 ? (
@@ -400,11 +448,11 @@ export default function IdeaCard({ idea, onClick }: IdeaCardProps) {
                     />
                   ))
                 ) : (
-                  <ThumbsUp className="w-4 h-4 opacity-70" />
+                  isPastFinalClosure ? <Lock className="w-4 h-4 opacity-70" /> : <ThumbsUp className="w-4 h-4 opacity-70" />
                 )}
               </div>
               <span className={currentReaction ? "" : "opacity-80"}>
-                {totalReactions > 0 ? totalReactions : "React"}
+                {totalReactions > 0 ? totalReactions : (isPastFinalClosure ? "Locked" : "React")}
               </span>
             </button>
           </div>
