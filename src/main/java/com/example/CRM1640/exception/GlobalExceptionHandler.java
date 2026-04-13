@@ -2,6 +2,7 @@ package com.example.CRM1640.exception;
 
 import com.example.CRM1640.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -19,6 +20,7 @@ public class GlobalExceptionHandler {
         ErrorCode error = ex.getErrorCode();
 
         return ResponseEntity.status(error.getStatus())
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.builder()
                         .code(error.getCode())
                         .message(error.getMessage())
@@ -78,6 +80,7 @@ public class GlobalExceptionHandler {
         ErrorCode error = ErrorCode.UNCATEGORIZED;
 
         return ResponseEntity.status(error.getStatus())
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.builder()
                         .code(error.getCode())
                         .message(ex.getMessage())
