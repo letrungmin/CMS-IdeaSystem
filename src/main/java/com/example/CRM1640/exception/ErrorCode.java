@@ -101,9 +101,27 @@ public enum ErrorCode {
     USER_ALREADY_MANAGE_DEPARTMENT(10002, "User already manages another department. Choose another one", HttpStatus.CONFLICT),
     DEPARTMENT_NOT_FOUND(10003, "Department not found", HttpStatus.NOT_FOUND),
     DEPARTMENT_HAS_USERS(10004, "Department already has users assigned",HttpStatus.CONFLICT),
-    USER_NOT_QA_MANAGER(10005, "Assignee must have QA Manager role", HttpStatus.FORBIDDEN)
+    USER_NOT_QA_MANAGER(10005, "Assignee must have QA Manager role", HttpStatus.FORBIDDEN),
 
-    ;
+
+    CANNOT_ACTIVE_WHEN_CREATE(
+            10004,
+            "Cannot activate academic year during creation. Please activate after all required terms are prepared.",
+            HttpStatus.CONFLICT
+    ),
+
+    TERM_NOT_READY(
+            10005,
+            "Terms are not ready for this academic year. Please ensure all departments have published terms before activation.",
+            HttpStatus.CONFLICT
+    ),
+
+    CANNOT_UPDATE_PUBLISHED_TERM(
+            10006,
+            "Cannot update a published term. Please create a new version instead.",
+            HttpStatus.CONFLICT
+    )
+            ;
 
 
 

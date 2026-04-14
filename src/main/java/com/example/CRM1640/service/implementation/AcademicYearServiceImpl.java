@@ -3,9 +3,13 @@ package com.example.CRM1640.service.implementation;
 import com.example.CRM1640.dto.request.AcademicYearRequest;
 import com.example.CRM1640.dto.response.AcademicYearResponse;
 import com.example.CRM1640.entities.organization.AcademicYearEntity;
+import com.example.CRM1640.entities.organization.DepartmentEntity;
+import com.example.CRM1640.enums.AcademicYearStatus;
 import com.example.CRM1640.exception.AppException;
 import com.example.CRM1640.exception.ErrorCode;
 import com.example.CRM1640.mappers.AcademicYearMapper;
+import com.example.CRM1640.repositories.authen.DepartmentRepository;
+import com.example.CRM1640.repositories.authen.TermsRepository;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
 import com.example.CRM1640.service.interfaces.AcademicYearService;
 import jakarta.transaction.Transactional;
@@ -20,6 +24,8 @@ import java.util.List;
 public class AcademicYearServiceImpl implements AcademicYearService {
     private final AcademicYearRepository repository;
     private final AcademicYearMapper mapper;
+    private final DepartmentRepository departmentRepository;
+    private final TermsRepository termsRepository;
 
     @Override
     @Transactional
@@ -31,12 +37,14 @@ public class AcademicYearServiceImpl implements AcademicYearService {
 
         validateDates(request);
 
-        // if active = true → deactivate the rest academy year
         if (request.active()) {
-            repository.deactivateAll();
+            throw new AppException(ErrorCode.CANNOT_ACTIVE_WHEN_CREATE);
         }
 
         AcademicYearEntity entity = mapper.toEntity(request);
+
+        entity.setStatus(AcademicYearStatus.DRAFT);
+        entity.setActive(false);
 
         repository.save(entity);
 
@@ -52,15 +60,9 @@ public class AcademicYearServiceImpl implements AcademicYearService {
 
         validateDates(request);
 
-        if (request.active()) {
-            repository.deactivateAll();
-        }
-
         mapper.updateEntity(entity, request);
 
-        repository.save(entity);
-
-        return mapper.toResponse(entity);
+        return mapper.toResponse(repository.save(entity));
     }
 
     @Override
@@ -105,15 +107,40 @@ public class AcademicYearServiceImpl implements AcademicYearService {
                 .orElseThrow(() -> new AppException(ErrorCode.ACADEMY_YEAR_NOT_FOUND));
 
         if (active) {
+
+            validateTermsReady(entity.getId());
+
             repository.deactivateAll();
+
             entity.setActive(true);
+            entity.setStatus(AcademicYearStatus.ACTIVE);
+
         } else {
             entity.setActive(false);
+            entity.setStatus(AcademicYearStatus.CLOSED);
         }
 
         repository.save(entity);
 
         return mapper.toResponse(entity);
+    }
+
+    private void validateTermsReady(Long academicYearId) {
+
+        List<DepartmentEntity> departments = departmentRepository.findAll();
+
+        for (DepartmentEntity dept : departments) {
+
+            boolean exists = termsRepository
+                    .existsByDepartmentIdAndAcademicYearIdAndActiveTrue(
+                            dept.getId(),
+                            academicYearId
+                    );
+
+            if (!exists) {
+                throw new AppException(ErrorCode.TERM_NOT_READY);
+            }
+        }
     }
 
     private void validateDates(AcademicYearRequest request) {

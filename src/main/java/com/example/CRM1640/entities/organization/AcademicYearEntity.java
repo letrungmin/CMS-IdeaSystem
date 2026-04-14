@@ -1,5 +1,6 @@
 package com.example.CRM1640.entities.organization;
 
+import com.example.CRM1640.enums.AcademicYearStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,7 +18,7 @@ public class AcademicYearEntity {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name; // 2025-2026
+    private String name;
 
     @Column(nullable = false)
     private LocalDateTime ideaClosureDate;
@@ -26,4 +27,7 @@ public class AcademicYearEntity {
     private LocalDateTime finalClosureDate;
 
     private boolean active;
+
+    @Enumerated(EnumType.STRING)
+    private AcademicYearStatus status;
 }
