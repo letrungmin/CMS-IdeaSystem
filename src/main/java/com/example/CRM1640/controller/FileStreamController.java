@@ -83,7 +83,7 @@ public class FileStreamController {
             case "png" -> "image/png";
             case "jpg", "jpeg" -> "image/jpeg";
             case "webp" -> "image/webp";
-            case "mp4" -> "video/mp4";        // 🔥 video support
+            case "mp4" -> "video/mp4";
             case "mov" -> "video/quicktime";
             case "pdf" -> "application/pdf";
             case "doc", "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";

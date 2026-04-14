@@ -1,5 +1,6 @@
 package com.example.CRM1640.config;
 
+
 import com.example.CRM1640.entities.auth.Permission;
 import com.example.CRM1640.entities.auth.RoleEntity;
 import com.example.CRM1640.entities.auth.UserEntity;

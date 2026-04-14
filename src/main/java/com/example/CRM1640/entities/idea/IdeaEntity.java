@@ -101,4 +101,20 @@ public class IdeaEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private UserEntity approvedBy;
+
+
+    // ================= AI ANALYTICS =================
+
+    @Column(name = "toxicity_score")
+    private Double toxicityScore;
+
+    @Column(name = "ai_summary", columnDefinition = "TEXT")
+    private String aiSummary;
+
+    @Column(name = "is_duplicate")
+    private Boolean isDuplicate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "similar_to_idea_id")
+    private IdeaEntity similarToIdea;
 }
