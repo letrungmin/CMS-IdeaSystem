@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bell, Lightbulb, LogOut } from "lucide-react";
+import { Search, Lightbulb, LogOut } from "lucide-react";
 import SubmitIdeaModal from "./SubmitIdeaModal";
+import NotificationBell from "./NotificationBell"; // <-- Imported the new component
 import { useLanguage } from "./LanguageProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -37,7 +38,7 @@ export default function TopBar() {
   const checkAcademicYearStatus = async () => {
     try {
       const token = localStorage.getItem("accessToken");
-      // Dùng đúng API Get All Academic Years như bên Admin
+      // Use the actual API to Get All Academic Years like Admin
       const response = await fetch("http://localhost:9999/api/v1/academic-years", {
         headers: { ...(token ? { "Authorization": `Bearer ${token}` } : {}) }
       });
@@ -46,7 +47,7 @@ export default function TopBar() {
         const data = await response.json();
         const yearsList = data.result || [];
         
-        // Tìm năm học đang Active
+        // Find the currently active year
         const activeYear = yearsList.find((y: any) => y.active === true);
         
         if (activeYear && activeYear.ideaClosureDate) {
@@ -109,14 +110,8 @@ export default function TopBar() {
             </button>
           )}
 
-          <button 
-            onClick={() => alert("Notification panel is under construction!")}
-            title={t("topbar.notifications")}
-            className="relative p-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
-          </button>
+          {/* Integrated the interactive Notification Bell Component */}
+          <NotificationBell />
 
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-800 hidden sm:block transition-colors duration-300"></div>
 

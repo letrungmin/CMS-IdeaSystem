@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, UploadCloud, Shield, Loader2, FileText, Trash2, CheckCircle2, PartyPopper, Video, AlertTriangle, Lock } from "lucide-react";
+import { X, UploadCloud, Shield, Loader2, FileText, Trash2, CheckCircle2, PartyPopper, Video, Lock, AlertOctagon, Files, HelpCircle, Sparkles } from "lucide-react";
 import { useLanguage } from "./LanguageProvider";
 
 interface SubmitIdeaModalProps {
@@ -29,6 +29,12 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
   
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [errorCode, setErrorCode] = useState<number | null>(null); 
+  
+  // AI Suggestion States
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState("");
+
   const [showTermsPopup, setShowTermsPopup] = useState(false);
   const [pendingTermsId, setPendingTermsId] = useState<number | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -88,15 +94,10 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
         
         if (activeYear && activeYear.ideaClosureDate) {
           let closureTime = new Date(activeYear.ideaClosureDate).getTime();
-          
           if (activeYear.ideaClosureDate.includes("T00:00:00")) {
             closureTime += (24 * 60 * 60 * 1000) - 1000;
           }
-
-          const now = new Date().getTime();
-          if (now > closureTime) {
-            setIsClosed(true);
-          }
+          if (new Date().getTime() > closureTime) setIsClosed(true);
         }
       }
     } catch (error) {}
@@ -114,7 +115,8 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
       document.body.style.overflow = "hidden";
       setTitle(""); setCategoryId(""); setContent("");
       setIsAnonymous(false); setFiles([]);
-      setErrorMessage(""); setShowTermsPopup(false); setPendingTermsId(null); setIsSuccess(false); setIsClosed(false);
+      setErrorMessage(""); setErrorCode(null); setAiExplanation("");
+      setShowTermsPopup(false); setPendingTermsId(null); setIsSuccess(false); setIsClosed(false);
       initializeModal();
     } else {
       document.body.style.overflow = "unset";
@@ -124,8 +126,7 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      setFiles((prev) => [...prev, ...selectedFiles]);
+      setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
     }
   };
 
@@ -133,6 +134,68 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
+  // --- AI CATEGORY SUGGESTION ---
+  const handleAiSuggest = async () => {
+    if (!title && !content) {
+      setErrorMessage("Please enter at least a Title or Content for the AI to analyze.");
+      return;
+    }
+    
+    setIsSuggesting(true);
+    setErrorMessage("");
+    setErrorCode(null);
+    setAiExplanation("");
+    
+    try {
+      const token = getToken();
+      const response = await fetch("http://localhost:9999/api/v1/idea/suggest-category", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}) 
+        },
+        body: JSON.stringify({ title, content })
+      });
+
+      const data = await response.json();
+
+      // 1. NẾU BỊ LỖI (Ví dụ: Python chưa chạy -> Java trả về code 503)
+      if (!response.ok || (data.code && data.code !== 1000 && data.code !== 200)) {
+        throw new Error(data.message || "AI Service is temporarily unavailable.");
+      }
+      
+      // 2. TRÍCH XUẤT AN TOÀN (Lỡ data.result rỗng thì gán fallback là chuỗi rỗng)
+      const suggestion = data.result || data || {};
+      const predictedCategory = suggestion.assigned_category || suggestion.assignedCategory || "";
+      const explanation = suggestion.ai_explanation || suggestion.aiExplanation || "";
+
+      // 3. NẾU AI TRẢ VỀ RỖNG, CHẶN LUÔN
+      if (!predictedCategory) {
+        throw new Error("AI returned an empty or invalid category.");
+      }
+
+      // 4. KIỂM TRA KHỚP VỚI DATABASE (Có bọc an toàn ToLowerCase)
+      const matchedCategory = categories.find(cat => 
+        cat.name && (
+          cat.name.toLowerCase().includes(predictedCategory.toLowerCase()) || 
+          predictedCategory.toLowerCase().includes(cat.name.toLowerCase())
+        )
+      );
+
+      if (matchedCategory) {
+        setCategoryId(matchedCategory.id);
+        setAiExplanation(explanation);
+      } else {
+        setAiExplanation(`AI suggested '${predictedCategory}', but it doesn't match active lists. ${explanation}`);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  // --- CORE SUBMISSION & AI ERROR HANDLING ---
   const executeSubmitIdea = async () => {
     try {
       const token = getToken();
@@ -156,11 +219,13 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
         if (responseText.toLowerCase().includes("closure") || responseText.toLowerCase().includes("expired")) {
           setIsClosed(true); return;
         }
-        throw new Error(dataObj?.message || dataObj?.error || `Server Error ${response.status}: Failed to process submission.`);
+        if (dataObj?.code) setErrorCode(dataObj.code);
+        throw new Error(dataObj?.message || dataObj?.error || `Server Error ${response.status}`);
       }
       
       if (dataObj && dataObj.code && dataObj.code !== 1000) {
-        throw new Error(dataObj.message || dataObj.error || "Submission rejected by server internal rules.");
+        if (dataObj.code) setErrorCode(dataObj.code);
+        throw new Error(dataObj.message || dataObj.error || "Submission rejected.");
       }
       
       setIsSuccess(true);
@@ -174,7 +239,7 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
 
   const handleAcceptTerms = async () => {
     if (!pendingTermsId) return;
-    setIsLoading(true); setErrorMessage("");
+    setIsLoading(true); setErrorMessage(""); setErrorCode(null);
     try {
       const token = getToken();
       const response = await fetch("http://localhost:9999/api/v1/user/accept-terms", {
@@ -191,14 +256,20 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
   };
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setErrorMessage(""); 
+    e.preventDefault(); 
+    setErrorMessage(""); 
+    setErrorCode(null);
     
     if (isClosed) {
-      setErrorMessage("The deadline for submitting ideas has passed. Submissions are now closed.");
+      setErrorMessage("The deadline for submitting ideas has passed.");
       return;
     }
 
-    if (!title || !categoryId || !content) { setErrorMessage("Please fill in all required fields."); return; }
+    if (!title || !categoryId || !content) { 
+      setErrorMessage("Please fill in all required fields."); 
+      return; 
+    }
+    
     setIsLoading(true);
     
     try {
@@ -211,11 +282,9 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
       let termData: any = null;
       try { termData = JSON.parse(responseText); } catch(err) {}
 
-      // LOGIC VƯỢT RÀO: Nếu Backend chưa có Terms (Code 7002) hoặc API bị 404, Bypass và nộp luôn!
       if (!checkResponse.ok) {
         if (termData?.code === 7002 || checkResponse.status === 404) {
-          await executeSubmitIdea();
-          return;
+          await executeSubmitIdea(); return;
         }
         throw new Error(termData?.message || "Could not verify Terms status.");
       }
@@ -229,7 +298,6 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
         setShowTermsPopup(true); 
         setIsLoading(false); 
       } else {
-        // Đề phòng API trả về OK nhưng không có dữ liệu terms
         await executeSubmitIdea();
       }
     } catch (error: any) {
@@ -242,7 +310,7 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 relative border border-transparent dark:border-slate-800">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden relative border border-transparent dark:border-slate-800">
         
         {isCheckingStatus ? (
           <div className="flex flex-col items-center justify-center p-20 text-blue-500">
@@ -256,30 +324,30 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
             </div>
             <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-3 uppercase tracking-tight">SUBMISSION CLOSED</h2>
             <p className="text-slate-600 dark:text-slate-400 text-lg mb-8 max-w-sm leading-relaxed">The deadline for submitting new ideas in the current academic year has passed.</p>
-            <button onClick={onClose} className="px-8 py-3.5 font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-md transition-all hover:-translate-y-1 w-full max-w-xs uppercase">CLOSE</button>
+            <button onClick={onClose} className="px-8 py-3.5 font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-xl shadow-md transition-all hover:-translate-y-1 w-full max-w-xs uppercase">CLOSE</button>
           </div>
         ) : isSuccess ? (
           <div className="flex flex-col items-center justify-center p-12 text-center animate-in zoom-in duration-500">
             <div className="relative w-24 h-24 mb-6">
               <div className="absolute inset-0 bg-green-100 dark:bg-green-900/40 rounded-full animate-ping opacity-75"></div>
-              <div className="relative flex items-center justify-center w-24 h-24 bg-green-500 rounded-full shadow-lg shadow-green-200 dark:shadow-none animate-bounce">
+              <div className="relative flex items-center justify-center w-24 h-24 bg-green-500 rounded-full shadow-lg animate-bounce">
                 <CheckCircle2 className="w-12 h-12 text-white" />
               </div>
             </div>
             <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-2">Awesome! <PartyPopper className="w-8 h-8 text-yellow-500" /></h2>
             <p className="text-slate-600 dark:text-slate-400 text-lg mb-8 max-w-sm">Your idea has been successfully submitted to the system.</p>
-            <button onClick={onClose} className="px-8 py-3.5 font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-md transition-all hover:-translate-y-1 w-full max-w-xs">Done & Close</button>
+            <button onClick={onClose} className="px-8 py-3.5 font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-xl shadow-md transition-all hover:-translate-y-1 w-full max-w-xs">Done & Close</button>
           </div>
         ) : (
           <>
             {showTermsPopup && (
               <div className="absolute inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in slide-in-from-bottom-4 duration-300">
-                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-inner"><FileText className="w-8 h-8" /></div>
+                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-inner"><FileText className="w-8 h-8" /></div>
                 <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Terms & Conditions</h3>
                 <p className="text-slate-600 dark:text-slate-400 text-center mb-8 max-w-md leading-relaxed">Before submitting your idea, you must agree to the university's terms.</p>
                 <div className="flex gap-4 w-full justify-center">
-                  <button type="button" onClick={() => setShowTermsPopup(false)} disabled={isLoading} className="px-6 py-3 font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50">Decline</button>
-                  <button type="button" onClick={handleAcceptTerms} disabled={isLoading} className="px-6 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg flex items-center gap-2 transition-transform hover:-translate-y-1 disabled:opacity-70 disabled:hover:translate-y-0">
+                  <button type="button" onClick={() => setShowTermsPopup(false)} disabled={isLoading} className="px-6 py-3 font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50">Decline</button>
+                  <button type="button" onClick={handleAcceptTerms} disabled={isLoading} className="px-6 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg flex items-center gap-2 transition-transform hover:-translate-y-1 disabled:opacity-70">
                     {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle2 className="w-5 h-5" /> Accept & Continue</>}
                   </button>
                 </div>
@@ -288,45 +356,97 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
 
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
               <h2 className="text-xl font-bold text-slate-800 dark:text-white">Submit a New Idea</h2>
-              <button onClick={onClose} disabled={isLoading} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors disabled:opacity-50"><X className="w-5 h-5" /></button>
+              <button onClick={onClose} disabled={isLoading} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors disabled:opacity-50"><X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handleInitialSubmit} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-5">
                 
-                {errorMessage && <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-xl font-medium flex items-center gap-2 border border-red-100 dark:border-red-800/50"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/> <span className="break-words">{errorMessage}</span></div>}
+                {/* --- SMART AI ERROR ALERT CARD --- */}
+                {errorMessage && (
+                  <div className={`p-4 rounded-xl border-l-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
+                    errorCode === 11002 
+                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border-amber-500'
+                      : errorCode === 11003 
+                      ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 border-purple-500'
+                      : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 border-red-500' 
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 shrink-0">
+                        {errorCode === 11002 ? <Files className="w-5 h-5 text-amber-600 dark:text-amber-400" /> :
+                         errorCode === 11003 ? <HelpCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" /> :
+                         <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400" />}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold uppercase tracking-wider mb-1">
+                          {errorCode === 11002 ? "Duplicate Detected" :
+                           errorCode === 11003 ? "Out of Context" :
+                           "Action Denied"}
+                        </h4>
+                        <p className="text-sm leading-relaxed">{errorMessage}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Title <span className="text-red-500">*</span></label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isLoading || isClosed} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none placeholder-slate-400 dark:placeholder-slate-500 disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-500" />
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isLoading || isClosed} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 outline-none placeholder-slate-400 disabled:opacity-60" />
                 </div>
 
+                {/* --- CATEGORY DROPDOWN & AI SUGGEST --- */}
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Category <span className="text-red-500">*</span></label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={handleAiSuggest}
+                      disabled={isSuggesting || isClosed || (!title && !content)}
+                      className="text-xs font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 transition-colors disabled:opacity-50"
+                    >
+                      {isSuggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Auto Suggest
+                    </button>
+                  </div>
+
                   <select 
-                    value={categoryId} onChange={(e) => setCategoryId(e.target.value === "" ? "" : Number(e.target.value))} 
-                    disabled={isLoading || isLoadingCategories || isClosed} 
-                    className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-500 font-medium"
+                    value={categoryId} 
+                    onChange={(e) => {
+                      setCategoryId(e.target.value === "" ? "" : Number(e.target.value));
+                      setAiExplanation("");
+                    }} 
+                    disabled={isLoading || isLoadingCategories || isSuggesting || isClosed} 
+                    className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 outline-none font-medium disabled:opacity-60 transition-all"
                   >
                     <option value="">{isLoadingCategories ? "Loading categories..." : "Select a category..."}</option>
-                    {categories.length > 0 ? categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>) : (
-                      !isLoadingCategories && (<><option value="1">Industry Collaboration</option><option value="2">Community Engagement</option><option value="3">Sustainability & Green Campus</option><option value="4">Innovation & Entrepreneurship</option></>)
-                    )}
+                    {categories.length > 0 && categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
+
+                  {/* AI EXPLANATION BANNER */}
+                  {aiExplanation && (
+                    <div className="mt-2 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 rounded-lg animate-in fade-in slide-in-from-top-2">
+                      <p className="text-xs text-indigo-700 dark:text-indigo-300 flex gap-2">
+                        <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span><strong>AI Analysis:</strong> {aiExplanation}</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Content <span className="text-red-500">*</span></label>
-                  <textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} disabled={isLoading || isClosed} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/50 outline-none resize-none placeholder-slate-400 dark:placeholder-slate-500 disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-500"></textarea>
+                  <textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} disabled={isLoading || isClosed} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-100 outline-none resize-none placeholder-slate-400 disabled:opacity-60"></textarea>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Supporting Media</label>
                   <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx,video/mp4,video/webm,video/quicktime" disabled={isClosed} />
-                  <div onClick={() => !isClosed && fileInputRef.current?.click()} className={`mt-1 border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all ${isClosed ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-60 dark:border-slate-800 dark:bg-slate-900' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'}`}>
+                  <div onClick={() => !isClosed && fileInputRef.current?.click()} className={`mt-1 border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-all ${isClosed ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-60' : 'border-slate-300 hover:bg-slate-50 cursor-pointer'}`}>
                     <UploadCloud className="w-8 h-8 text-blue-500 mb-2" />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Click to attach files or videos</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Supports JPG, PNG, PDF, DOCX, MP4</p>
+                    <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, PDF, DOCX, MP4</p>
                   </div>
 
                   {files.length > 0 && (
@@ -334,7 +454,7 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
                       {files.map((file, idx) => {
                         const isVideo = file.type.startsWith("video/");
                         return (
-                          <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                          <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 rounded-lg">
                             <div className="flex items-center gap-2 overflow-hidden">
                               {isVideo ? <Video className="w-4 h-4 text-purple-500 shrink-0" /> : <FileText className="w-4 h-4 text-blue-500 shrink-0" />}
                               <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{file.name}</span>
@@ -358,7 +478,7 @@ export default function SubmitIdeaModal({ isOpen, onClose, onSuccess }: SubmitId
               </div>
 
               <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-3 rounded-b-2xl">
-                <button type="button" onClick={onClose} disabled={isLoading} className="px-5 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl">Cancel</button>
+                <button type="button" onClick={onClose} disabled={isLoading} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl">Cancel</button>
                 <button type="submit" disabled={isLoading || isClosed} className={`px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-md flex items-center gap-2 ${isClosed ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700'}`}>
                   {isLoading && !showTermsPopup ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : "Submit Idea"}
                 </button>

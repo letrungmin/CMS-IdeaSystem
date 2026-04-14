@@ -15,7 +15,17 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+// =======================================================
+// [Min code] IMPORT FOR IN-APP NOTIFICATION FEATURE
+// =======================================================
+import com.example.CRM1640.dto.response.NotificationResponse;
+import com.example.CRM1640.repositories.system.NotificationRepository;
+import com.example.CRM1640.entities.system.NotificationEntity;
+import com.example.CRM1640.entities.idea.IdeaEntity;
+import com.example.CRM1640.enums.NotificationType;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +35,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final DepartmentRepository departmentRepository;
     private final UserRepository userRepository;
 
+    // [Min code] Inject Notification Repository
+    private final NotificationRepository notificationRepository;
 
     @Override
     @Transactional
@@ -113,7 +125,6 @@ public class NotificationServiceImpl implements NotificationService {
         );
     }
 
-
     // ================= CURRENT USER =================
     private UserEntity getCurrentUser() {
 
@@ -122,10 +133,98 @@ public class NotificationServiceImpl implements NotificationService {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-
         String username = authentication.getName();
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
+
+
+    // ====================================================================================
+    // [Min code] - START OF IN-APP NOTIFICATION IMPLEMENTATION
+    // ====================================================================================
+
+    @Override
+    public List<NotificationResponse> getMyInAppNotifications() {
+        UserEntity currentUser = getCurrentUser();
+        List<NotificationEntity> entities = notificationRepository.findTop20ByReceiverIdOrderByCreatedAtDesc(currentUser.getId());
+
+        // Map Entity to DTO to prevent Jackson Infinite Recursion
+        return entities.stream().map(notif -> {
+            NotificationResponse.IdeaInfo ideaInfo = null;
+            if (notif.getIdea() != null) {
+                ideaInfo = new NotificationResponse.IdeaInfo(notif.getIdea().getId());
+            }
+
+            return NotificationResponse.builder()
+                    .id(notif.getId())
+                    .title(notif.getTitle())
+                    .message(notif.getMessage())
+                    .type(notif.getType().name())
+                    .read(notif.isRead())
+                    .createdAt(notif.getCreatedAt())
+                    .idea(ideaInfo)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void markInAppAsRead(Long notificationId) {
+        UserEntity currentUser = getCurrentUser();
+
+        NotificationEntity notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        // [FIXED] Use getReceiver().getId() instead of getReceiverId()
+        if (!notification.getReceiver().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Access Denied: You do not own this notification");
+        }
+
+        // [FIXED] Use isRead() and setRead() following Lombok boolean naming convention
+        if (!notification.isRead()) {
+            notification.setRead(true);
+            notification.setReadAt(LocalDateTime.now());
+            notificationRepository.save(notification);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void createNotification(Long receiverId, Long actorId, Long ideaId, String title, String message, String type) {
+        NotificationEntity notification = new NotificationEntity();
+
+        // [FIXED] Use Entity Proxy to set foreign key without querying the DB
+        UserEntity receiver = new UserEntity();
+        receiver.setId(receiverId);
+        notification.setReceiver(receiver);
+
+        if (actorId != null) {
+            UserEntity actor = new UserEntity();
+            actor.setId(actorId);
+            notification.setActor(actor);
+        }
+
+        if (ideaId != null) {
+            IdeaEntity idea = new IdeaEntity();
+            idea.setId(ideaId);
+            notification.setIdea(idea);
+        }
+
+        notification.setTitle(title);
+        notification.setMessage(message);
+
+        // [FIXED] Parse String to Enum NotificationType
+        notification.setType(NotificationType.valueOf(type));
+
+        // [FIXED] Initialize as unread
+        notification.setRead(false);
+
+        // No need to set UUID or CreatedAt as @PrePersist handles it automatically
+        notificationRepository.save(notification);
+    }
+
+    // ====================================================================================
+    // [Min code] - END OF IN-APP NOTIFICATION IMPLEMENTATION
+    // ====================================================================================
 }

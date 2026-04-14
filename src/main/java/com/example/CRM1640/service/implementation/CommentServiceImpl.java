@@ -25,6 +25,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.*;
+import com.example.CRM1640.service.interfaces.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -40,6 +41,7 @@ public class CommentServiceImpl implements CommentService {
     private final UserRepository userRepository;
     private final ReactionRepository reactionRepository;
     private final AcademicYearRepository academicYearRepository;
+    private final NotificationService notificationService;
 
     // ================= CREATE =================
     @Override
@@ -80,11 +82,41 @@ public class CommentServiceImpl implements CommentService {
         comment.setParent(parent);
 
         commentRepository.save(comment);
-
         idea.setCommentCount(idea.getCommentCount() + 1);
-
         if (parent != null) {
             parent.setReplyCount(parent.getReplyCount() + 1);
+        }
+
+        // =========================================================================
+        // [Min code] GỬI CHUÔNG BÁO KHI CÓ NGƯỜI BÌNH LUẬN
+        // =========================================================================
+        // Không gửi thông báo nếu mình tự comment vào bài của mình
+        if (!user.getId().equals(idea.getAuthor().getId())) {
+            String commenterName = request.anonymous() ? "Một người ẩn danh" : user.getFirstName() + " " + user.getLastName();
+            String title = commenterName + " đã bình luận về ý tưởng của bạn";
+            String msg = request.content();
+
+            notificationService.createNotification(
+                    idea.getAuthor().getId(), // Gửi cho chủ nhân bài viết
+                    user.getId(), // Người comment
+                    idea.getId(),
+                    title,
+                    msg,
+                    "COMMENT"
+            );
+        }
+
+        // (Nếu là reply comment, gửi thêm thông báo cho người viết comment gốc)
+        if (parent != null && !user.getId().equals(parent.getAuthor().getId())) {
+            String replierName = request.anonymous() ? "Một người ẩn danh" : user.getFirstName() + " " + user.getLastName();
+            notificationService.createNotification(
+                    parent.getAuthor().getId(), // Gửi cho chủ nhân comment gốc
+                    user.getId(),
+                    idea.getId(),
+                    replierName + " đã trả lời bình luận của bạn",
+                    request.content(),
+                    "REPLY_COMMENT"
+            );
         }
 
         return mapToResponse(comment, List.of());

@@ -74,7 +74,7 @@ export default function ProfilePage() {
       if (userData.avatar) {
         safeAvatarUrl = userData.avatar.startsWith('http') 
           ? userData.avatar 
-          : `http://localhost:9999${userData.avatar.startsWith('/') ? '' : '/'}${userData.avatar}`;
+          : `http://localhost:9999/api/v1/${userData.avatar.startsWith('/') ? '' : '/'}${userData.avatar}`;
       }
 
       const buildFullName = (u: any) => {

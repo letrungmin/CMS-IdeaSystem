@@ -6,5 +6,11 @@ public enum NotificationType {
     REACTION,
     IDEA_SUBMITTED,
     DEADLINE_REMINDER,
-    SYSTEM_ANNOUNCEMENT
+    SYSTEM_ANNOUNCEMENT,
+
+    APPROVE,
+    REJECT,
+    REPLY_COMMENT,
+    LIKE,
+    ENCOURAGE
 }

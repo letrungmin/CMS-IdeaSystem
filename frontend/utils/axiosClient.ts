@@ -3,7 +3,7 @@ import axios from 'axios';
 // 1. Create an axios instance with default configurations
 const axiosClient = axios.create({
   // baseURL points to the Spring Boot Backend (default port 8080)
-  baseURL: 'http://localhost:8080/api/v1',
+  baseURL: 'http://localhost:9999/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },

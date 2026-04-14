@@ -47,4 +47,30 @@ public class NotificationController {
                 .result("Encourage email sent (QA Manager)")
                 .build();
     }
+
+    // ====================================================================================
+    // [Min code] - BẮT ĐẦU PHẦN THÊM MỚI CHO TÍNH NĂNG "NÚT CHUÔNG" (IN-APP NOTIFICATION)
+    // Code cũ ở trên của Thanh được giữ nguyên 100%, tuyệt đối không đụng chạm.
+    // ====================================================================================
+
+    @GetMapping("/in-app/me")
+    public ApiResponse<?> getMyInAppNotifications() {
+        return ApiResponse.builder()
+                .result(notificationService.getMyInAppNotifications())
+                .message("Lấy danh sách chuông thông báo thành công")
+                .build();
+    }
+
+    @PutMapping("/in-app/{id}/read")
+    public ApiResponse<?> markInAppAsRead(@PathVariable Long id) {
+        notificationService.markInAppAsRead(id);
+        return ApiResponse.builder()
+                .result("Success")
+                .message("Đã tắt chấm đỏ thông báo")
+                .build();
+    }
+
+    // ====================================================================================
+    // [Min code] - KẾT THÚC PHẦN THÊM MỚI CHO "NÚT CHUÔNG"
+    // ====================================================================================
 }

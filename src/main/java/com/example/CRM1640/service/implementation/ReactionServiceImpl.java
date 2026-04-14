@@ -16,6 +16,7 @@ import com.example.CRM1640.repositories.idea.CommentRepository;
 import com.example.CRM1640.repositories.idea.IdeaRepository;
 import com.example.CRM1640.repositories.idea.ReactionRepository;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
+import com.example.CRM1640.service.interfaces.NotificationService;
 import com.example.CRM1640.service.interfaces.ReactionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,8 @@ public class ReactionServiceImpl implements ReactionService {
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
     private final AcademicYearRepository academicYearRepository;
+    // [Min code] Inject NotificationService
+    private final NotificationService notificationService;
 
     // ================= IDEA REACTION =================
     @Override
@@ -75,8 +78,22 @@ public class ReactionServiceImpl implements ReactionService {
                     r.setIdea(idea);
                     r.setType(newType);
                     reactionRepository.save(r);
-
                     increaseCount(idea, newType);
+
+                    // =========================================================================
+                    // [Min code] GỬI CHUÔNG BÁO KHI AI ĐÓ LIKE/DISLIKE (Chỉ gửi lúc LIKE cho tích cực)
+                    // =========================================================================
+                    if (newType == ReactionType.LIKE && !user.getId().equals(idea.getAuthor().getId())) {
+                        String reactorName = user.getFirstName() + " " + user.getLastName();
+                        notificationService.createNotification(
+                                idea.getAuthor().getId(),
+                                user.getId(),
+                                idea.getId(),
+                                reactorName + " đã thích ý tưởng của bạn",
+                                "Ý tưởng: " + idea.getTitle(),
+                                "LIKE"
+                        );
+                    }
                 },
 
                 // DELETE (toggle off)

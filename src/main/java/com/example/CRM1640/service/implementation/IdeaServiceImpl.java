@@ -20,9 +20,8 @@ import com.example.CRM1640.repositories.authen.UserRepository;
 import com.example.CRM1640.repositories.authen.UserTermsAcceptanceRepository;
 import com.example.CRM1640.repositories.idea.*;
 import com.example.CRM1640.repositories.organization.AcademicYearRepository;
-import com.example.CRM1640.service.interfaces.FilesStorageService;
-import com.example.CRM1640.service.interfaces.IdeaService;
-import com.example.CRM1640.service.interfaces.RabbitMQProducer;
+import com.example.CRM1640.service.interfaces.*;
+import com.example.CRM1640.service.interfaces.NotificationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,13 +54,16 @@ public class IdeaServiceImpl implements IdeaService {
     private final IdeaDocumentRepository ideaDocumentRepository;
     private final CommentRepository commentRepository;
     private final RabbitMQProducer rabbitMQProducer;
+    private final ModerationService moderationService;
+    private final AiIntegrationService aiIntegrationService;
+    // Inject NotificationService
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
-    public IdeaResponse submitIdea(CreateIdeaRequest request,List<MultipartFile> files) {
+    public IdeaResponse submitIdea(CreateIdeaRequest request, List<MultipartFile> files) {
 
         UserEntity user = getCurrentUser();
-
 
         // ================= Academic Year =================
         AcademicYearEntity academicYear = academicYearRepository
@@ -89,6 +91,27 @@ public class IdeaServiceImpl implements IdeaService {
             throw new AppException(ErrorCode.MUST_ACCEPT_TERM);
         }
 
+        String textToAnalyze = request.getTitle() + ".\n" + request.getContent();
+
+        // ================= [AI] 1. Toxicity Moderation =================
+        boolean isContentSafe = moderationService.isSafe(textToAnalyze);
+
+        if (!isContentSafe) {
+            throw new AppException(ErrorCode.TOXIC_CONTENT_DETECTED);
+        }
+
+        // ================= [AI] 2. Semantic Duplicate Check =================
+        boolean isDuplicate = aiIntegrationService.isDuplicate(textToAnalyze);
+
+        if (isDuplicate) {
+            throw new AppException(ErrorCode.DUPLICATE_IDEA_DETECTED);
+        }
+        // ================= [AI GATEWAY] 2.5 OUT-OF-DISTRIBUTION CHECK =================
+        boolean isOod = aiIntegrationService.isOutOfDistribution(textToAnalyze);
+        if (isOod) {
+            throw new AppException(ErrorCode.OUT_OF_DISTRIBUTION_DETECTED);
+        }
+
         // ================= Create Idea =================
         IdeaEntity idea = new IdeaEntity();
         idea.setTitle(request.getTitle());
@@ -106,7 +129,6 @@ public class IdeaServiceImpl implements IdeaService {
         List<IdeaDocumentEntity> documents = filesStorageService.saveFiles(files, idea);
 
         ideaDocumentRepository.saveAll(documents);
-
 
         // ================= Categories =================
         List<String> categoryNames = new ArrayList<>();
@@ -126,6 +148,14 @@ public class IdeaServiceImpl implements IdeaService {
             categoryNames.add(category.getName());
         }
 
+        // ================= [AI] 3. Async Vector Synchronization (NEW) =================
+        // Extract the first category name to pass as metadata to the AI, fallback to "general"
+        String primaryCategory = categoryNames.isEmpty() ? "general" : categoryNames.get(0);
+
+        // Store the embedding in ChromaDB asynchronously (Does not slow down the API response)
+        aiIntegrationService.storeIdeaToVectorDb(idea.getId(), idea.getContent(), primaryCategory);
+
+        // ================= RabbitMQ Event =================
         rabbitMQProducer.send(
                 IdeaEvent.builder()
                         .ideaId(idea.getId())
@@ -137,7 +167,6 @@ public class IdeaServiceImpl implements IdeaService {
                         .type(IdeaEventType.SUBMITTED)
                         .build()
         );
-
 
         // ================= Build Response =================
         return buildResponse(idea, categoryNames);
@@ -355,6 +384,7 @@ public class IdeaServiceImpl implements IdeaService {
         idea.setApprovedAt(LocalDateTime.now());
         idea.setApprovedBy(getCurrentUser());
 
+        // Lệnh gửi email cũ của Thanh (đã được khôi phục chữ .build() ở cuối)
         rabbitMQProducer.send(
                 IdeaEvent.builder()
                         .ideaId(idea.getId())
@@ -362,7 +392,21 @@ public class IdeaServiceImpl implements IdeaService {
                         .authorEmail(idea.getAuthor().getEmail())
                         .authorName(idea.getAuthor().getUsername())
                         .type(IdeaEventType.APPROVED)
-                        .build()
+                        .build() // <--- THỦ PHẠM NẰM Ở ĐÂY ĐÃ BỊ TÓM GỌN
+        );
+
+        // =========================================================================
+        // [Min code] GỬI CHUÔNG BÁO CHO SINH VIÊN KHI Ý TƯỞNG ĐƯỢC DUYỆT
+        // =========================================================================
+        String title = "Ý tưởng của bạn đã được duyệt!";
+        String msg = "Ý tưởng '" + idea.getTitle() + "' đã được QA Manager thông qua.";
+        notificationService.createNotification(
+                idea.getAuthor().getId(), // Người nhận là sinh viên
+                getCurrentUser().getId(), // Người duyệt là QA Manager
+                idea.getId(),
+                title,
+                msg,
+                "APPROVE" // Lưu ý: Nếu NotificationType Enum của Thanh viết khác, ngài nhớ sửa lại chữ này
         );
     }
 
@@ -377,6 +421,7 @@ public class IdeaServiceImpl implements IdeaService {
         idea.setFeedback(feedback);
         idea.setApprovedBy(getCurrentUser());
 
+        // Lệnh gửi email cũ của Thanh
         rabbitMQProducer.send(
                 IdeaEvent.builder()
                         .ideaId(idea.getId())
@@ -385,7 +430,21 @@ public class IdeaServiceImpl implements IdeaService {
                         .authorName(idea.getAuthor().getUsername())
                         .feedback(idea.getFeedback())
                         .type(IdeaEventType.REJECTED)
-                        .build()
+                        .build() // <--- THỦ PHẠM NẰM Ở ĐÂY ĐÃ BỊ TÓM GỌN
+        );
+
+        // =========================================================================
+        // [Min code] GỬI CHUÔNG BÁO CHO SINH VIÊN KHI Ý TƯỞNG BỊ TỪ CHỐI
+        // =========================================================================
+        String title = "Ý tưởng của bạn bị từ chối";
+        String msg = "Lý do: " + feedback;
+        notificationService.createNotification(
+                idea.getAuthor().getId(),
+                getCurrentUser().getId(),
+                idea.getId(),
+                title,
+                msg,
+                "REJECT" // Lưu ý: Nếu NotificationType Enum của Thanh viết khác, ngài nhớ sửa lại chữ này
         );
     }
 
@@ -510,4 +569,5 @@ public class IdeaServiceImpl implements IdeaService {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
+
 }

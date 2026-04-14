@@ -103,24 +103,15 @@ public enum ErrorCode {
     DEPARTMENT_HAS_USERS(10004, "Department already has users assigned",HttpStatus.CONFLICT),
     USER_NOT_QA_MANAGER(10005, "Assignee must have QA Manager role", HttpStatus.FORBIDDEN),
 
+    // ===== Term =====
+    CANNOT_ACTIVE_WHEN_CREATE(10004, "Cannot activate academic year during creation. Please activate after all required terms are prepared.", HttpStatus.CONFLICT),
+    TERM_NOT_READY(10005, "Terms are not ready for this academic year. Please ensure all departments have published terms before activation.", HttpStatus.CONFLICT),
+    CANNOT_UPDATE_PUBLISHED_TERM(10006, "Cannot update a published term. Please create a new version instead.", HttpStatus.CONFLICT),
 
-    CANNOT_ACTIVE_WHEN_CREATE(
-            10004,
-            "Cannot activate academic year during creation. Please activate after all required terms are prepared.",
-            HttpStatus.CONFLICT
-    ),
-
-    TERM_NOT_READY(
-            10005,
-            "Terms are not ready for this academic year. Please ensure all departments have published terms before activation.",
-            HttpStatus.CONFLICT
-    ),
-
-    CANNOT_UPDATE_PUBLISHED_TERM(
-            10006,
-            "Cannot update a published term. Please create a new version instead.",
-            HttpStatus.CONFLICT
-    )
+    // ===== AI =====
+    TOXIC_CONTENT_DETECTED(11001, "Your submission has been rejected as it violates the University's ethical and content guidelines.", HttpStatus.FORBIDDEN),
+    DUPLICATE_IDEA_DETECTED(11002, "Action denied. A semantically similar idea already exists in the system.", HttpStatus.CONFLICT),
+    OUT_OF_DISTRIBUTION_DETECTED(11003, "Action denied. The content is entirely unrelated to university context or domains.", HttpStatus.BAD_REQUEST)
             ;
 
 

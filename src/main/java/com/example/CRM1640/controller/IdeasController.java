@@ -4,6 +4,10 @@ import com.example.CRM1640.dto.ApiResponse;
 import com.example.CRM1640.dto.request.CreateIdeaRequest;
 import com.example.CRM1640.dto.response.IdeaDetailResponse;
 import com.example.CRM1640.dto.response.IdeaResponse;
+// [NEW] IMPORT DTO & SERVICE CHO AI
+import com.example.CRM1640.dto.response.CategorySuggestionResponse;
+import com.example.CRM1640.service.implementation.AiIntegrationServiceImpl;
+import com.example.CRM1640.service.interfaces.AiIntegrationService;
 import com.example.CRM1640.service.interfaces.IdeaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/idea")
@@ -25,6 +30,8 @@ import java.util.List;
 public class IdeasController {
 
     IdeaService ideaService;
+    //  INJECT AI SERVICE
+    AiIntegrationService aiIntegrationService;
 
     // ================= CREATE =================
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -181,6 +188,36 @@ public class IdeasController {
         return ApiResponse.<Page<IdeaDetailResponse>>builder()
                 .result(ideaService.getMyIdeas(page, size))
                 .message("Get my ideas successfully")
+                .path(http.getRequestURI())
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    // ================= [NEW] EXPLAINABLE AI CATEGORIZATION =================
+    @PostMapping("/suggest-category")
+    public ApiResponse<CategorySuggestionResponse> suggestCategory(
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest http
+    ) {
+        String title = payload.getOrDefault("title", "");
+        String content = payload.getOrDefault("content", "");
+        String combinedText = title + ".\n" + content;
+
+        CategorySuggestionResponse suggestion = aiIntegrationService.suggestCategory(combinedText);
+
+        if (suggestion == null) {
+            // Graceful degradation: Return code 503 if Python AI is down, without crashing the app
+            return ApiResponse.<CategorySuggestionResponse>builder()
+                    .code(503)
+                    .message("AI Suggestion is currently unavailable.")
+                    .path(http.getRequestURI())
+                    .timestamp(System.currentTimeMillis())
+                    .build();
+        }
+
+        return ApiResponse.<CategorySuggestionResponse>builder()
+                .result(suggestion)
+                .message("AI category suggestion retrieved successfully")
                 .path(http.getRequestURI())
                 .timestamp(System.currentTimeMillis())
                 .build();
